@@ -1,10 +1,48 @@
-# Python-generated files
+# === Node / pnpm ===
+node_modules/
+.pnpm-store/
+.npmrc
+*.tsbuildinfo
+
+# === TypeScript build output ===
+dist/
+out/
+*.js.map
+*.d.ts.map
+
+# === Python / uv ===
 __pycache__/
 *.py[oc]
+*.egg-info/
 build/
-dist/
+sdist/
 wheels/
-*.egg-info
+.venv/
 
-# Virtual environments
-.venv
+# === uv ===
+# uv.lock and .python-version are committed for reproducibility
+
+# === IDE / Editor ===
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# === Logs ===
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# === Environment ===
+.env
+.env.*
+!.env.example
+
+# === OS ===
+.DS_Store
+Thumbs.db
