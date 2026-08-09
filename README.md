@@ -8,7 +8,7 @@
 |------|------|--------|------|
 | 前端 | TypeScript | pnpm | Web 应用 |
 | 后端 A | Python 3.12 + FastAPI | uv | 无人机任务分配 / 路径规划 |
-| 后端 B | TypeScript + Node.js | pnpm | 业务 API / 实时服务 |
+| 后端 B | TypeScript + Node.js | pnpm | 待定 |
 | 共享层 | TypeScript / Python | pnpm / uv | 类型定义、工具函数、数据模型 |
 | 数据库 | PostgreSQL | — | 规划中 |
 
@@ -76,7 +76,7 @@ ST-Risk-For-UAV/
 ┌──────────────┐   ┌──────────────┐
 │  Python 后端  │   │  Node 后端    │
 │  FastAPI      │   │  TypeScript   │
-│  任务分配      │   │  业务API/实时  │
+│  任务分配      │   │  待定          │
 │  路径规划      │   │              │
 └──────┬───────┘   └──────┬───────┘
        │                  │
@@ -89,8 +89,8 @@ ST-Risk-For-UAV/
 ```
 
 - **Python 后端**：无人机任务分配算法（匈牙利、拍卖）和路径规划算法（A*、RRT），对外暴露 REST API
-- **Node 后端**：负责用户认证、业务逻辑、WebSocket 实时通信、前端 BFF 等
-- 两者通过 **共享数据库** 和 **内部 API** 协作，互不耦合
+- **Node 后端**：待定
+- 两者独立部署，互不耦合
 
 ### Python 后端 API
 
