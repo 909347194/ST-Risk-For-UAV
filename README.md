@@ -14,7 +14,7 @@ ST-Risk-For-UAV 是一套面向异构无人机集群的智能调度与风险评�
 | **任务适配** | 根据任务需求（载荷、时效、优先级）自动匹配合适的 UAV 资源 |
 | **多机多任务分配** | 多架无人机对多个任务的目标分配 |
 | **路径规划** | 单机路径规划与多机协同路径规划 |
-| **飞行风险评估** | 基于时空分析的 UAV 飞行风险评估与规避策略 |
+| **飞行风险评估** | 任务分配与飞行路线的风险评估，涵盖法律法规、气象条件、地面障碍物、通信状况等 |
 | **AI Agent 智能调度** | LLM Agent 理解自然语言指令，自主编排调度流程 |
 
 ## 系统架构
@@ -32,7 +32,7 @@ graph TB
     end
 
     subgraph 算法层
-        PY["🧮 Python 后端 (算法引擎)<br/>Python 3.12 + FastAPI<br/><br/>• 任务分配<br/>• 路径规划<br/>• 飞行风险评估<br/>• 资源发现与能力匹配"]
+        PY["🧮 Python 后端 (算法引擎)<br/>Python 3.12 + FastAPI<br/><br/>• 任务分配<br/>• 路径规划<br/>• 飞行风险评估<br/>(法规 · 气象 · 障碍物 · 通信)<br/>• 资源发现与能力匹配"]
     end
 
     subgraph 存储层
@@ -63,10 +63,12 @@ sequenceDiagram
     LLM-->>Node: 事件类型：火灾侦察<br/>位置：布达拉宫附近<br/>需求：航拍评估 + 路径规划 + 风险评估
     Node->>Py: 资源发现：可用无人机筛选
     Py-->>Node: 可用 UAV 列表及状态
-    Node->>Py: 任务分配 + 路径规划 + 风险评估
-    Py-->>Node: 调度方案
+    Node->>Py: 任务分配 + 路径规划
+    Py-->>Node: 分配结果与规划路径
+    Node->>Py: 风险评估：法规、气象、障碍物、通信
+    Py-->>Node: 风险评估报告
     Node-->>FE: 组装最终结果
-    FE-->>User: 地图展示 UAV 编队、<br/>规划路径、风险热力图
+    FE-->>User: 地图展示 UAV 编队、<br/>规划路径、风险等级
 ```
 
 ### 职责划分
@@ -75,7 +77,7 @@ sequenceDiagram
 |------|------|--------|----------|
 | **前端** | 用户交互、地图可视化、任务监控、调度结果展示 | TypeScript · pnpm | — |
 | **Node 后端** | 业务流程编排、AI Agent 开发、LLM 对话与 Tool 调用、REST API 聚合 | TypeScript · Node.js · pnpm | 面向前端 · REST API |
-| **Python 后端** | 算法封装与开发、核心计算引擎 | Python 3.12 · FastAPI · uv | 面向 Node · REST API |
+| **Python 后端** | 任务分配、路径规划、飞行风险评估（法规/气象/障碍物/通信）、资源发现 | Python 3.12 · FastAPI · uv | 面向 Node · REST API |
 | **共享层** | 类型定义、API 封包、领域模型、工具函数 | TypeScript / Python | — |
 | **数据库** | 任务记录、UAV 状态、调度历史、空间数据、向量索引 | PostgreSQL + PostGIS + pgvector | — |
 
