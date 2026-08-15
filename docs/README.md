@@ -1,3 +1,6 @@
 # Docs
 
-Place design notes, architecture decisions, and usage guides here.
+项目设计文档、技术选型与架构决策。
+
+- [协作指南](CONTRIBUTING.md) — 分支策略、代码规范、PR 流程
+- [前端技术选型建议](前端技术选型建议.md) — UI 组件库、地图/3D 库、AI 交互组件选型分析
