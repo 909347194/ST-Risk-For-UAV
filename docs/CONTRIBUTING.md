@@ -196,12 +196,13 @@ PYTHON_API_PORT=8000
 NODE_API_PORT=3000
 ```
 
-## 数据库协作（PostgreSQL · 规划中）
+## 数据库协作（PostgreSQL + PostGIS + pgvector · 规划中）
 
 - 使用 **migration 工具** 管理数据库结构变更（如 Alembic / Prisma / Drizzle）
 - 每次 schema 变更必须提交 migration 文件
 - 禁止直接手动改线上数据库结构
 - 本地每人独立数据库实例，不共享
+- PostGIS 扩展用于空间数据查询，pgvector 扩展用于向量检索
 
 ## 提交前检查清单
 
