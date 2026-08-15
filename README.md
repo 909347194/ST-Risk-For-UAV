@@ -57,16 +57,16 @@ sequenceDiagram
     participant LLM as 大语言模型
     participant Py as Python 后端<br/>(算法引擎)
 
-    User->>FE: "为这3架无人机分配任务"
+    User->>FE: "拉萨布达拉宫附近发生火灾，<br/>请派无人机查看"
     FE->>Node: POST /api/v1/dispatch
-    Node->>LLM: 理解意图，拆分子任务
-    LLM-->>Node: 需要：任务分配 + 路径规划
-    Node->>Py: POST /api/v1/tasks/allocate
-    Py-->>Node: 分配结果
-    Node->>Py: POST /api/v1/paths/plan
-    Py-->>Node: 路径规划结果
+    Node->>LLM: 理解事件，提取：位置、事件类型、<br/>任务意图、紧急程度
+    LLM-->>Node: 事件类型：火灾侦察<br/>位置：布达拉宫附近<br/>需求：航拍评估 + 路径规划 + 风险评估
+    Node->>Py: 资源发现：可用无人机筛选
+    Py-->>Node: 可用 UAV 列表及状态
+    Node->>Py: 任务分配 + 路径规划 + 风险评估
+    Py-->>Node: 调度方案
     Node-->>FE: 组装最终结果
-    FE-->>User: 可视化展示调度方案
+    FE-->>User: 地图展示 UAV 编队、<br/>规划路径、风险热力图
 ```
 
 ### 职责划分
