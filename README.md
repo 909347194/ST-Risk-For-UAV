@@ -28,7 +28,7 @@ graph TB
     end
 
     subgraph 业务层
-        NODE["⚙️ Node 后端 (BFF)<br/>TypeScript + Node.js<br/><br/>• 业务流程编排<br/>• AI Agent 智能调度<br/>• LLM 对话与 Tool 调用<br/>• 会话管理 / 多轮对话"]
+        NODE["⚙️ Node 后端 (BFF)<br/>Express + Drizzle + Pi Agent<br/><br/>• 业务流程编排<br/>• AI Agent 智能调度<br/>• LLM 对话与 Tool 调用<br/>• 会话管理 / 多轮对话"]
     end
 
     subgraph 算法层
@@ -76,7 +76,7 @@ sequenceDiagram
 | 层级 | 职责 | 技术栈 | 对外接口 |
 |------|------|--------|----------|
 | **前端** | 用户交互、地图可视化、任务监控、调度结果展示 | TypeScript · pnpm | — |
-| **Node 后端** | 业务流程编排、AI Agent 开发、LLM 对话与 Tool 调用、REST API 聚合 | TypeScript · Node.js · pnpm | 面向前端 · REST API |
+| **Node 后端** | 业务流程编排、AI Agent 开发、LLM 对话与 Tool 调用、REST API 聚合 | Express · Drizzle · pi-ai / pi-agent-core | 面向前端 · REST API |
 | **Python 后端** | 任务分配、路径规划、飞行风险评估（法规/气象/障碍物/通信）、资源发现 | Python 3.12 · FastAPI · uv | 面向 Node · REST API |
 | **共享层** | 类型定义、API 封包、领域模型、工具函数 | TypeScript / Python | — |
 | **数据库** | 任务记录、UAV 状态、调度历史、空间数据、向量索引 | PostgreSQL + PostGIS + pgvector | — |
@@ -123,7 +123,9 @@ ST-Risk-For-UAV/
 │           └── shared_py/
 ├── scripts/                               # 自动化脚本
 ├── docs/                                  # 项目文档
-│   └── CONTRIBUTING.md                    #   协作指南
+│   ├── CONTRIBUTING.md                    #   协作指南
+│   ├── 前端技术选型建议.md                  #   前端选型分析
+│   └── 后端技术选型建议.md                  #   后端选型分析
 ├── package.json                           # pnpm 根配置
 ├── pnpm-workspace.yaml                    # pnpm 工作区定义
 ├── pyproject.toml                         # uv / Python 根配置
@@ -141,6 +143,7 @@ ST-Risk-For-UAV/
 | GET | `/api/v1/tasks/algorithms` | 列出可用分配算法 |
 | POST | `/api/v1/paths/plan` | 提交路径规划请求 |
 | GET | `/api/v1/paths/algorithms` | 列出可用规划算法 |
+| POST | `/api/v1/resources/discover` | 资源发现：可用 UAV 筛选 |
 | GET | `/health` | 健康检查 |
 
 ### 领域模型
@@ -233,4 +236,6 @@ uv add --extra dev <package>
 ## 文档
 
 - [协作指南](docs/CONTRIBUTING.md) — 分支策略、代码规范、PR 流程
-- [文档目录](docs/) — 设计文档、架构决策
+- [前端技术选型建议](docs/前端技术选型建议.md) — UI 组件库、地图/3D 库选型
+- [后端技术选型建议](docs/后端技术选型建议.md) — Node/Python 后端框架、Agent 底座
+- [文档目录](docs/) — 全部设计文档与架构决策

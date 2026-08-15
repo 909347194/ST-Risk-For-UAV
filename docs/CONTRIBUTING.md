@@ -192,13 +192,15 @@ pnpm install
 ```bash
 # .env.example 示例
 DATABASE_URL=postgresql://user:pass@localhost:5432/st_risk
+REDIS_URL=redis://localhost:6379/0
 PYTHON_API_PORT=8000
 NODE_API_PORT=3000
 ```
 
 ## 数据库协作（PostgreSQL + PostGIS + pgvector · 规划中）
 
-- 使用 **migration 工具** 管理数据库结构变更（如 Alembic / Prisma / Drizzle）
+- Node 后端使用 **Drizzle** 管理 schema 与迁移（SQL 文件）
+- Python 后端使用 **SQLAlchemy + Alembic** 管理 schema 与迁移
 - 每次 schema 变更必须提交 migration 文件
 - 禁止直接手动改线上数据库结构
 - 本地每人独立数据库实例，不共享
