@@ -19,43 +19,67 @@ ST-Risk-For-UAV 是一套面向异构无人机集群的智能调度与风险评�
 
 ## 系统架构
 
+### 整体架构
+
+```mermaid
+graph TB
+    subgraph 用户层
+        FE["🖥️ 前端<br/>交互 · 可视化 · 地图 · 监控"]
+    end
+
+    subgraph 业务层
+        NODE["⚙️ Node 后端 (BFF)<br/>TypeScript + Node.js<br/><br/>• 业务流程编排<br/>• AI Agent 智能调度<br/>• LLM 对话与 Tool 调用<br/>• 会话管理 / 多轮对话<br/>• REST API 聚合层"]
+    end
+
+    subgraph 算法层
+        PY["🧮 Python 后端 (算法引擎)<br/>Python 3.12 + FastAPI<br/><br/>• 任务分配算法（匈牙利、拍卖）<br/>• 路径规划算法（A*、RRT）<br/>• 飞行风险评估模型<br/>• 资源发现与能力匹配"]
+    end
+
+    subgraph 存储层
+        DB[("🗄️ PostgreSQL<br/>规划中")]
+    end
+
+    FE -->|"REST API"| NODE
+    NODE -->|"REST API"| PY
+    NODE --- DB
+    PY --- DB
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│                        前端 (Web Frontend)                        │
-│                   交互 · 可视化 · 地图 · 监控                      │
-└──────────┬───────────────────────────────────┬───────────────────┘
-           │                                   │
-           ▼                                   ▼
-┌─────────────────────────┐       ┌─────────────────────────────────┐
-│     Node 后端 (BFF)      │       │        Python 后端 (算法引擎)     │
-│  TypeScript + Node.js    │       │      Python 3.12 + FastAPI      │
-│                          │       │                                  │
-│  • 业务逻辑编排           │       │  • 任务分配算法（匈牙利、拍卖）     │
-│  • AI Agent 智能调度      │◄─────►│  • 路径规划算法（A*、RRT）        │
-│  • 会话管理 / 多轮对话    │       │  • 飞行风险评估模型               │
-│  • LLM 编排与 Tool 调用   │       │  • 资源发现与能力匹配             │
-│  • REST API 聚合层        │       │  • 对外暴露 REST API             │
-└──────────┬───────────────┘       └──────────┬────────────────────┘
-           │                                  │
-           └──────────────┬───────────────────┘
-                          ▼
-                  ┌──────────────┐
-                  │  PostgreSQL   │  (规划中)
-                  │  共享数据库    │
-                  └──────────────┘
+
+> **前端只与 Node 后端通信，Node 作为唯一网关代理对 Python 的调用。** 前端不直接访问 Python 端，保持单一出口、统一鉴权和简洁的前端逻辑。
+
+### 调用流程示例
+
+```mermaid
+sequenceDiagram
+    actor User as 用户
+    participant FE as 前端
+    participant Node as Node 后端<br/>(Agent)
+    participant LLM as 大语言模型
+    participant Py as Python 后端<br/>(算法引擎)
+
+    User->>FE: "为这3架无人机分配任务"
+    FE->>Node: POST /api/v1/dispatch
+    Node->>LLM: 理解意图，拆分子任务
+    LLM-->>Node: 需要：任务分配 + 路径规划
+    Node->>Py: POST /api/v1/tasks/allocate
+    Py-->>Node: 分配结果
+    Node->>Py: POST /api/v1/paths/plan
+    Py-->>Node: 路径规划结果
+    Node-->>FE: 组装最终结果
+    FE-->>User: 可视化展示调度方案
 ```
 
 ### 职责划分
 
-| 层级 | 职责 | 技术栈 |
-|------|------|--------|
-| **前端** | 用户交互、地图可视化、任务监控、调度结果展示 | TypeScript · pnpm |
-| **Node 后端** | 业务流程编排、AI Agent 开发、LLM 对话与 Tool 调用、REST API 聚合 | TypeScript · Node.js · pnpm |
-| **Python 后端** | 算法封装与开发、核心计算引擎、对外暴露算法 REST API | Python 3.12 · FastAPI · uv |
-| **共享层** | 类型定义、API 封包、领域模型、工具函数 | TypeScript / Python |
-| **数据库** | 任务记录、UAV 状态、调度历史、风险数据 | PostgreSQL (规划中) |
+| 层级 | 职责 | 技术栈 | 对外接口 |
+|------|------|--------|----------|
+| **前端** | 用户交互、地图可视化、任务监控、调度结果展示 | TypeScript · pnpm | — |
+| **Node 后端** | 业务流程编排、AI Agent 开发、LLM 对话与 Tool 调用、REST API 聚合 | TypeScript · Node.js · pnpm | 面向前端 · REST API |
+| **Python 后端** | 算法封装与开发、核心计算引擎 | Python 3.12 · FastAPI · uv | 面向 Node · REST API |
+| **共享层** | 类型定义、API 封包、领域模型、工具函数 | TypeScript / Python | — |
+| **数据库** | 任务记录、UAV 状态、调度历史、风险数据 | PostgreSQL (规划中) | — |
 
-> **两个后端独立、并列，可独立部署和扩展。** Python 端专注于算法能力，Node 端专注于业务智能与 Agent 编排。
+> **Python 端不直接面向前端，专注于算法能力；Node 端作为 BFF 网关，统一处理鉴权、编排和 Agent 逻辑。**
 
 ## 项目结构
 
@@ -109,7 +133,7 @@ ST-Risk-For-UAV/
 
 ## Python 后端 API
 
-算法引擎对外暴露标准 REST API，供 Node 后端或前端直接调用：
+算法引擎对 Node 后端暴露 REST API，由 Node 端代理调用：
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
