@@ -7,3 +7,4 @@
 - [后端技术选型建议](后端技术选型建议.md) — Node/Python 后端框架、Agent 底座、数据库、任务队列
 - [算法设计](algorithms/) — Python 端算法设计文档
   - [任务分配](algorithms/task-allocation/) — 场景分析、三阶段架构、代价矩阵、待定问题
+- [论文框架](论文框架.md) — 硕士论文故事线、创新点、章节结构
