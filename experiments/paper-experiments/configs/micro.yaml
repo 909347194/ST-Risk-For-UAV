@@ -1,0 +1,181 @@
+# ============================================================================
+# 微观实验配置 (Micro-Scale Experiment Configuration)
+# ============================================================================
+# 用于算法机理验证的小尺度合成场景
+# 场景：400m x 400m 街区，合成数据，可控风险热点
+
+experiment:
+    name: "micro_validation"
+    description: "算法机理验证 - 微观街区场景"
+    type: "synthetic" # 使用合成数据
+
+# --------------------------------------------------------------------------
+# 1. 空间网格配置
+# --------------------------------------------------------------------------
+spatial_grid:
+    x_min: 0.0
+    x_max: 400.0
+    y_min: 0.0
+    y_max: 400.0
+    z_min: 0.0
+    z_max: 120.0
+    resolution_xy: 10.0 # 水平分辨率 (m)
+    resolution_z: 10.0 # 垂直分辨率 (m)
+
+# 计算得到的网格维度
+grid_dims:
+    nx: 40 # (400-0)/10
+    ny: 40 # (400-0)/10
+    nz: 12 # (120-0)/10
+
+# --------------------------------------------------------------------------
+# 2. 时间配置
+# --------------------------------------------------------------------------
+temporal:
+    total_hours: 24 # 24小时模拟
+    dt_minutes: 60 # 1小时时间片 (理解为"出发时刻对应的风险切片")
+    nt: 24 # 时间步数
+
+# --------------------------------------------------------------------------
+# 3. 合成场景设计
+# --------------------------------------------------------------------------
+scenario:
+    # 建筑布局：中间高楼峡谷 + 两侧低矮建筑
+    building_layout:
+        type: "canyon" # 峡谷模式
+        canyon_center: 200 # 峡谷中心位置 (m)
+        canyon_width: 60 # 峡谷宽度 (m)
+        high_buildings: # 高层建筑区域
+            height_range: [60, 100]
+            positions: [[170, 170, 230, 230]] # [x_min, y_min, x_max, y_max]
+        low_buildings: # 低层建筑区域
+            height_range: [10, 30]
+            positions:
+                [
+                    [50, 50, 150, 150],
+                    [250, 50, 350, 150],
+                    [50, 250, 150, 350],
+                    [250, 250, 350, 350],
+                ]
+
+    # 土地利用布局
+    landuse_layout:
+        residential_zones: [[50, 50, 150, 150], [250, 250, 350, 350]] # 住宅区
+        commercial_zones: [[150, 150, 250, 250]] # 商业区 (中心)
+        institution_zones: [[30, 170, 70, 230]] # 学校/医院
+        industrial_zones: [[330, 30, 380, 80]] # 工业区
+
+    # 风险热点设计
+    risk_hotspots:
+        # 高风速热点 (城市峡谷)
+        wind_hotspot:
+            center: [200, 200]
+            radius: 80
+            max_wind_speed: 15.0 # m/s
+
+        # 高降雨热点
+        rain_hotspot:
+            center: [200, 200]
+            radius: 100
+            max_intensity: 20.0 # mm/h
+
+        # 高人口密度热点
+        population_hotspot:
+            center: [200, 200]
+            radius: 60
+            peak_density: 1.0
+
+# --------------------------------------------------------------------------
+# 4. OD对设计 (起点-终点)
+# --------------------------------------------------------------------------
+od_pairs:
+    # 主要测试OD：西南到东北，穿过高风险区
+    primary:
+        origin: [5, 5]
+        destination: [35, 35]
+        description: "穿越中心峡谷的对角线路径"
+
+    # 备选OD对
+    alternatives:
+        - origin: [5, 20]
+          destination: [35, 20]
+          description: "水平穿越峡谷"
+        - origin: [20, 5]
+          destination: [20, 35]
+          description: "垂直穿越峡谷"
+
+# --------------------------------------------------------------------------
+# 5. 实验设计
+# --------------------------------------------------------------------------
+experiments:
+    # 实验1：不同算法对比
+    algorithm_comparison:
+        algorithms:
+            - name: "shortest_astar"
+              description: "最短路径A*"
+              use_risk: false
+            - name: "static_risk_astar"
+              description: "静态风险A*"
+              use_risk: true
+              temporal: false
+            - name: "full_risk_astar"
+              description: "全风险A* (时空)"
+              use_risk: true
+              temporal: true
+            - name: "eda_kmeans"
+              description: "EDA + K-means + CostA*"
+              use_risk: true
+              temporal: true
+
+        # 测试时刻
+        time_slots: [8, 12, 18, 22] # 08:00, 12:00, 18:00, 22:00
+
+    # 实验2：不同出发时刻对比
+    temporal_comparison:
+        time_slots:
+            - hour: 8
+              label: "早高峰"
+              description: "住宅区→办公区通勤"
+            - hour: 12
+              label: "午间"
+              description: "学校/医院活跃"
+            - hour: 18
+              label: "晚高峰"
+              description: "办公区→住宅区通勤"
+            - hour: 22
+              label: "夜间"
+              description: "住宅区噪声敏感"
+
+    # 实验3：不同权重场景对比
+    weight_comparison:
+        presets: ["default", "emergency", "quiet_night", "strict_safety"]
+
+# --------------------------------------------------------------------------
+# 6. 评估指标
+# --------------------------------------------------------------------------
+metrics:
+    - name: "path_length"
+      description: "路径长度 (m)"
+      unit: "m"
+    - name: "expected_risk"
+      description: "期望风险 (积分)"
+      unit: "无量纲"
+    - name: "noise_cost"
+      description: "噪声成本"
+      unit: "dB"
+    - name: "total_cost"
+      description: "总成本 (加权和)"
+      unit: "无量纲"
+    - name: "computation_time"
+      description: "计算时间"
+      unit: "ms"
+
+# --------------------------------------------------------------------------
+# 7. 输出配置
+# --------------------------------------------------------------------------
+output:
+    base_dir: "output/micro-experiment"
+    save_paths: true # 保存路径坐标
+    save_tensors: false # 不保存完整张量 (太大)
+    plot_format: "png" # 图像格式
+    plot_dpi: 300 # 图像分辨率
