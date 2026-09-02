@@ -1,7 +1,7 @@
 """任务分配测试"""
 
-from src.shared.models import UAV, Task, Position
-from src.task_allocation.service import allocate
+from src.models.models import UAV, Task, Position
+from src.services.task_allocation import allocate
 
 
 def _make_uavs(n: int) -> list[UAV]:
@@ -13,7 +13,7 @@ def _make_uavs(n: int) -> list[UAV]:
 
 def _make_tasks(n: int) -> list[Task]:
     return [
-        Task(id=f"task-{i}", position=Position(x=i * 10 + 5, y=20, z=0))
+        Task(id=f"task-{i}", position=Position(x=i * 10 + 5, y=20, z=0), payload_weight=1.0)
         for i in range(n)
     ]
 
@@ -42,10 +42,12 @@ def test_more_tasks_than_uavs():
 
 
 def test_unknown_algorithm():
+    from src.models.exceptions import AlgorithmNotFoundError
+
     uavs = _make_uavs(1)
     tasks = _make_tasks(1)
     try:
         allocate(uavs, tasks, algorithm="nonexistent")
-        assert False, "Should have raised ValueError"
-    except ValueError:
+        assert False, "Should have raised AlgorithmNotFoundError"
+    except AlgorithmNotFoundError:
         pass

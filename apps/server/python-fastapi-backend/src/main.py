@@ -1,20 +1,25 @@
-"""FastAPI 入口"""
+"""FastAPI 入口 — 分层架构"""
 
 from fastapi import FastAPI
 
-from src.task_allocation.router import router as task_router
-from src.path_planning.router import router as planning_router
-
-app = FastAPI(
-    title="ST-Risk UAV Service",
-    description="无人机任务分配与路径规划服务",
-    version="0.1.0",
-)
-
-app.include_router(task_router, prefix="/api/v1/tasks", tags=["任务分配"])
-app.include_router(planning_router, prefix="/api/v1/paths", tags=["路径规划"])
+from src.utils.config import get_settings
+from src.routes import api_router
 
 
-@app.get("/health")
-async def health_check() -> dict:
-    return {"status": "ok"}
+def create_app() -> FastAPI:
+    settings = get_settings()
+
+    app = FastAPI(
+        title=settings.app_name,
+        description="无人机任务分配与路径规划服务（分层架构）",
+        version=settings.app_version,
+        debug=settings.debug,
+    )
+
+    # 所有路由统一通过 api_router 挂载，前缀 /api/v1
+    app.include_router(api_router, prefix="/api/v1")
+
+    return app
+
+
+app = create_app()

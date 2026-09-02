@@ -1,7 +1,7 @@
-"""路径规划测试"""
+"""航线规划测试"""
 
-from src.shared.models import Position
-from src.path_planning.service import plan_path
+from src.models.models import Position
+from src.services.route_planning import plan_path
 
 
 def test_astar_straight():
@@ -28,6 +28,8 @@ def test_rrt_basic():
 
 
 def test_unknown_algorithm():
+    from src.models.exceptions import AlgorithmNotFoundError
+
     start = Position(x=0, y=0)
     goal = Position(x=10, y=0)
     try:
@@ -35,6 +37,6 @@ def test_unknown_algorithm():
             uav_id="uav-1", task_id="task-1",
             start=start, goal=goal, obstacles=[], algorithm="nonexistent",
         )
-        assert False, "Should have raised ValueError"
-    except ValueError:
+        assert False, "Should have raised AlgorithmNotFoundError"
+    except AlgorithmNotFoundError:
         pass
