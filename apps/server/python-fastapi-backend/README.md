@@ -37,164 +37,364 @@ uv run pytest tests/ -v
 
 ## 架构
 
+### 分层总览
+
+```mermaid
+graph TB
+    subgraph 表现层
+        R[api/v1/endpoints/]
+    end
+    subgraph 契约层
+        S[schemas/]
+    end
+    subgraph 业务层
+        SV[services/]
+    end
+    subgraph 领域层
+        D[domain/]
+    end
+    subgraph 算法层
+        A[algorithms/]
+    end
+    subgraph 数据访问层
+        RE[repositories/]
+    end
+    subgraph 数据库层
+        DB[db/ + db/models/]
+    end
+    subgraph 基础设施
+        U[utils/]
+    end
+
+    R -->|调用| SV
+    R -.->|使用| S
+    SV -->|调用| A
+    SV -->|使用| D
+    RE -->|查询| DB
+    SV -->|通过| RE
+    A -->|使用| D
+    RE -->|使用| D
+    SV -->|使用| U
+```
+
+### 目录结构
+
 ```
 src/
 ├── main.py                          # 入口
 │
 ├── api/                             # 表现层
-│   └── v1/                          #   API 版本控制
-│       ├── api.py                   #     v1 路由汇总注册
-│       └── endpoints/               #     路由处理器
-│           ├── common.py            #       公共（health, algorithms）
-│           ├── uav_resource.py      #       ① 无人机资源管理
-│           ├── task_adaptability.py #       ② 任务适配评估
-│           ├── risk_assessment.py   #       ③ 飞行风险评估
-│           ├── task_allocation.py   #       ④ 任务分配
-│           ├── route_planning.py    #       ⑤ 航线规划
-│           └── flight_monitoring.py #       ⑥ 飞行监控
+│   └── v1/
+│       ├── api.py                   #   路由汇总注册
+│       └── endpoints/               #   路由处理器
 │
-├── schemas/                         # API 契约层（Request / Response Pydantic 模型）
+├── schemas/                         # API 契约层（Request / Response）
 │
-├── services/                        # 业务层
-│   ├── uav_resource/                #   ① 无人机资源管理
-│   ├── task_adaptability/           #   ② 任务适配评估
-│   ├── risk_assessment/             #   ③ 飞行风险评估
-│   ├── task_allocation/             #   ④ 任务分配
-│   ├── route_planning/              #   ⑤ 航线规划
-│   └── flight_monitoring/           #   ⑥ 飞行监控
+├── services/                        # 业务层（每个模块一个包）
+│   ├── uav_resource/
+│   ├── task_adaptability/
+│   ├── risk_assessment/
+│   ├── task_allocation/
+│   ├── route_planning/
+│   └── flight_monitoring/
 │
 ├── domain/                          # 领域层（Pydantic 实体、枚举、异常）
-│   ├── models.py                    #   UAV, Task, PathPlan, RiskAssessment...
-│   ├── enums.py                     #   UAVStatus, TaskPriority, RiskLevel
-│   └── exceptions.py                #   AlgorithmNotFoundError, RiskExceededError...
+│   ├── models.py
+│   ├── enums.py
+│   └── exceptions.py
 │
 ├── algorithms/                      # 算法层（统一注册表，可插拔）
-│   ├── registry.py                  #   按 category 注册/查询
-│   ├── path_planning/               #   A*, RRT
-│   └── task_allocation/             #   匈牙利算法, 拍卖算法
+│   ├── registry.py
+│   ├── path_planning/
+│   └── task_allocation/
 │
-├── repositories/                    # 数据访问层（SQLAlchemy 异步 CRUD）
-│   ├── base.py                      #   BaseRepository + InMemoryRepository
-│   ├── uav_repo.py
-│   ├── flight_log_repo.py
-│   ├── adaptability_repo.py
-│   └── risk_repo.py
+├── repositories/                    # 数据访问层
 │
 ├── db/                              # 数据库层（SQLAlchemy + Alembic）
-│   ├── engine.py                    #   异步引擎 + SessionLocal
-│   ├── base.py                      #   DeclarativeBase
-│   └── models/                      #   ORM 模型（表映射）
+│   ├── engine.py
+│   ├── base.py
+│   └── models/                      #   ORM 模型
 │
-└── utils/                           # 通用工具层
-    ├── config.py                    #   Settings（pydantic-settings）
-    └── utils.py                     #   几何计算、通用工具函数
-```
-
-### 依赖方向
-
-```
-API (endpoints)  →  Services  →  Algorithms  →  Domain
-      │                │
-   Schemas        Repositories  →  DB (SQLAlchemy Async)
-                     │
-                  Utils
+└── utils/                           # 工具层
+    ├── config.py
+    └── utils.py
 ```
 
 ### 各层职责
 
-| 目录 | 职责 |
-|------|------|
-| `api/v1/endpoints/` | 路由处理器，处理 HTTP 请求校验和响应格式化 |
-| `schemas/` | API 请求/响应 Pydantic 模型，仅定义契约 |
-| `services/` | 业务编排，每个模块为一个包（`__init__.py` + `service.py`） |
-| `domain/` | 领域实体（Pydantic）、枚举、异常，零业务逻辑 |
-| `algorithms/` | 纯算法实现，通过 `registry` 统一注册 |
-| `repositories/` | 数据访问接口，SQLAlchemy 异步 CRUD |
-| `db/` | 数据库引擎、会话、ORM 模型定义 |
-| `utils/` | 通用工具函数、配置管理 |
+| 层 | 目录 | 职责 |
+|---|------|------|
+| 表现层 | `api/v1/endpoints/` | 路由处理器，HTTP 校验与响应格式化 |
+| 契约层 | `schemas/` | API 请求/响应 Pydantic 模型 |
+| 业务层 | `services/` | 业务编排，调用算法与仓储 |
+| 领域层 | `domain/` | 实体、枚举、异常，零业务逻辑 |
+| 算法层 | `algorithms/` | 纯算法实现，通过 registry 统一注册 |
+| 数据访问层 | `repositories/` | 封装数据库 CRUD |
+| 数据库层 | `db/` | 引擎、会话、ORM 模型 |
+| 工具层 | `utils/` | 配置管理、通用工具函数 |
 
-### 领域模型 vs ORM 模型 vs API 模型
+### 三层模型
 
+```mermaid
+graph LR
+    A[API 模型<br>schemas/] -->|转换| B[领域模型<br>domain/]
+    B -->|映射| C[ORM 模型<br>db/models/]
+    D[repositories/] -->|桥接| B
+    D -->|桥接| C
 ```
-Domain (domain/models.py)     →  业务实体，纯 Pydantic，用于 services/algorithms
-ORM    (db/models/)           →  数据库表结构，SQLAlchemy 映射
-API    (schemas/)             →  请求/响应 DTO，Pydantic，用于路由层
+
+- **API 模型** (`schemas/`)：请求/响应 DTO，仅用于路由层
+- **领域模型** (`domain/`)：业务实体，用于 services/algorithms
+- **ORM 模型** (`db/models/`)：数据库表结构，SQLAlchemy 映射
+
+---
+
+## 开发新接口
+
+以「② 任务适配评估」模块为例，演示从零开发一个新接口的完整流程。
+
+### 流程总览
+
+```mermaid
+flowchart TD
+    A[1. 定义领域模型] --> B[2. 定义 Schema]
+    B --> C[3. 实现 Service]
+    C --> D[4. 实现 Repository]
+    D --> E[5. 编写路由]
+    E --> F[6. 注册路由]
+    F --> G[7. 编写测试]
+    G --> H[8. 验证]
+
+    style A fill:#e1f5fe
+    style B fill:#e1f5fe
+    style C fill:#fff3e0
+    style D fill:#fff3e0
+    style E fill:#e8f5e9
+    style F fill:#e8f5e9
+    style G fill:#fce4ec
+    style H fill:#fce4ec
 ```
 
-三层模型分离，通过 repositories 层桥接 domain ↔ db。
+### 请求流转
 
-## API 端点
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Endpoint as endpoint<br>api/v1/endpoints/
+    participant Schema as schema<br>schemas/
+    participant Service as service<br>services/
+    participant Repo as repository<br>repositories/
+    participant DB as db<br>db/models/
 
-### 公共
+    Client->>Endpoint: POST /api/v1/adaptability/evaluate
+    Endpoint->>Schema: 校验请求体 (AdaptabilityRequest)
+    Schema-->>Endpoint: Pydantic 模型
+    Endpoint->>Service: evaluate(uav, task)
+    Service->>Repo: get_uav(uav_id)
+    Repo->>DB: SELECT
+    DB-->>Repo: ORM 对象
+    Repo-->>Service: Domain 对象
+    Service-->>Endpoint: AdaptabilityResult
+    Endpoint->>Schema: 包装响应 (AdaptabilityResponse)
+    Schema-->>Client: JSON
+```
 
-| 方法 | 路径 | 说明 |
+### Step 1 — 定义领域模型
+
+在 `domain/models.py` 中添加实体（如已有则跳过）：
+
+```python
+# domain/models.py
+class AdaptabilityResult(BaseModel):
+    """任务适配评估结果"""
+    uav_id: str
+    task_id: str
+    capable: bool
+    score: float = Field(ge=0, le=1)
+    reasons: list[str] = Field(default_factory=list)
+```
+
+> 领域模型是纯数据定义，不含业务逻辑，不依赖 FastAPI。
+
+### Step 2 — 定义 Schema
+
+在 `schemas/` 下创建或编辑对应文件：
+
+```python
+# schemas/task_adaptability.py
+from pydantic import BaseModel, Field
+from src.domain.models import UAV, Task, AdaptabilityResult
+
+class AdaptabilityRequest(BaseModel):
+    """适配评估请求"""
+    uav_id: str
+    task: Task
+    min_battery_reserve: float = Field(default=0.2, ge=0, le=1)
+
+class AdaptabilityResponse(BaseModel):
+    """适配评估结果"""
+    result: AdaptabilityResult
+```
+
+> Schema 只定义 API 契约，不包含业务逻辑。
+
+### Step 3 — 实现 Service
+
+在 `services/` 对应包的 `service.py` 中编写业务逻辑：
+
+```python
+# services/task_adaptability/service.py
+from src.domain.models import UAV, Task, AdaptabilityResult
+from src.utils.utils import distance
+
+def evaluate(uav: UAV, task: Task, min_battery_reserve: float = 0.2) -> AdaptabilityResult:
+    # 载荷检查、电量检查、航程检查...
+    return AdaptabilityResult(uav_id=uav.id, task_id=task.id, capable=True, ...)
+```
+
+如需访问数据库，在 service 中调用 repository：
+
+```python
+from src.repositories.uav_repo import UAVRepository
+
+_repo = UAVRepository()
+
+def evaluate_by_id(uav_id: str, task: Task) -> AdaptabilityResult:
+    uav = _repo.find_by_id(uav_id)  # 通过仓储访问数据
+    ...
+```
+
+### Step 4 — 实现 Repository（如需持久化）
+
+在 `repositories/` 下添加数据访问逻辑：
+
+```python
+# repositories/uav_repo.py
+from src.repositories.base import InMemoryRepository
+from src.domain.models import UAV
+
+class UAVRepository(InMemoryRepository[UAV, str]):
+    def _extract_id(self, entity: UAV) -> str:
+        return entity.id
+
+    def find_by_status(self, status: str) -> list[UAV]:
+        return [u for u in self._store.values() if u.status == status]
+```
+
+> Repository 封装数据访问，Service 不直接操作数据库。
+
+### Step 5 — 编写路由
+
+在 `api/v1/endpoints/` 下创建或编辑对应文件：
+
+```python
+# api/v1/endpoints/task_adaptability.py
+from fastapi import APIRouter, HTTPException
+from src.schemas.task_adaptability import AdaptabilityRequest, AdaptabilityResponse
+from src.services import task_adaptability as service
+from src.services import uav_resource
+
+router = APIRouter()
+
+@router.post("/evaluate", response_model=AdaptabilityResponse)
+async def evaluate_adaptability(req: AdaptabilityRequest) -> AdaptabilityResponse:
+    """评估单架 UAV 对任务的适配度"""
+    uav = uav_resource.get_uav(req.uav_id)
+    result = service.evaluate(uav, req.task, req.min_battery_reserve)
+    return AdaptabilityResponse(result=result)
+```
+
+### Step 6 — 注册路由
+
+在 `api/v1/api.py` 中注册新路由：
+
+```python
+# api/v1/api.py
+from src.api.v1.endpoints.task_adaptability import router as adapt_router
+
+api_v1_router = APIRouter()
+api_v1_router.include_router(adapt_router, prefix="/adaptability", tags=["② 任务适配评估"])
+```
+
+### Step 7 — 编写测试
+
+在 `tests/` 下添加测试：
+
+```python
+# tests/test_task_adaptability.py
+from src.domain.models import UAV, Task, Position
+from src.services.task_adaptability import evaluate
+
+def test_evaluate_capable():
+    uav = UAV(id="uav-1", position=Position(x=0, y=0), speed=10.0, max_payload=5.0, battery=100.0)
+    task = Task(id="task-1", position=Position(x=50, y=50), payload_weight=1.0)
+    result = evaluate(uav, task)
+    assert result.capable is True
+    assert 0 <= result.score <= 1
+```
+
+### Step 8 — 验证
+
+```bash
+# 运行测试
+uv run pytest tests/test_task_adaptability.py -v
+
+# 启动服务，访问 Swagger 文档
+uv run uvicorn src.main:app --reload
+# 打开 http://localhost:8000/docs 查看新接口
+```
+
+### 涉及文件清单
+
+```mermaid
+graph LR
+    subgraph 新增/修改
+        A[domain/models.py]
+        B[schemas/task_adaptability.py]
+        C[services/task_adaptability/service.py]
+        D[repositories/uav_repo.py]
+        E[api/v1/endpoints/task_adaptability.py]
+        F[api/v1/api.py]
+        G[tests/test_task_adaptability.py]
+    end
+
+    A -->|被引用| B
+    A -->|被引用| C
+    A -->|被引用| D
+    B -->|被引用| E
+    C -->|被引用| E
+    D -->|被引用| C
+    E -->|被注册| F
+
+    style A fill:#e1f5fe
+    style B fill:#e1f5fe
+    style C fill:#fff3e0
+    style D fill:#fff3e0
+    style E fill:#e8f5e9
+    style F fill:#e8f5e9
+    style G fill:#fce4ec
+```
+
+| 步骤 | 文件 | 动作 |
 |------|------|------|
-| GET | `/api/v1/health` | 健康检查 |
-| GET | `/api/v1/algorithms` | 列出所有已注册算法 |
+| 1 | `domain/models.py` | 修改 — 添加领域实体 |
+| 2 | `schemas/task_adaptability.py` | 新增 — Request/Response |
+| 3 | `services/task_adaptability/service.py` | 新增 — 业务逻辑 |
+| 4 | `repositories/uav_repo.py` | 修改 — 添加查询方法（如需） |
+| 5 | `api/v1/endpoints/task_adaptability.py` | 新增 — 路由处理器 |
+| 6 | `api/v1/api.py` | 修改 — 注册路由 |
+| 7 | `tests/test_task_adaptability.py` | 新增 — 测试用例 |
 
-### ① 无人机资源管理 `/api/v1/uavs`
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | `/uavs` | 注册无人机 |
-| GET | `/uavs` | 列出无人机（支持 `?status=idle` 过滤） |
-| GET | `/uavs/{id}` | 查询单架无人机 |
-| PATCH | `/uavs/{id}/status` | 更新状态 |
-| DELETE | `/uavs/{id}` | 移除无人机 |
-| GET | `/uavs/{id}/snapshot` | 获取健康快照 |
-
-### ② 任务适配评估 `/api/v1/adaptability`
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | `/adaptability/evaluate` | 单机适配评估 |
-| POST | `/adaptability/batch` | 批量评估（按评分排序） |
-
-### ③ 飞行风险评估 `/api/v1/risk`
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | `/risk/assess` | 综合风险评估（碰撞/气象/电量） |
-
-### ④ 任务分配 `/api/v1/tasks`
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | `/tasks/allocate` | 执行任务分配 |
-| GET | `/tasks/algorithms` | 列出可用分配算法 |
-
-### ⑤ 航线规划 `/api/v1/paths`
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | `/paths/plan` | 执行航线规划 |
-| GET | `/paths/algorithms` | 列出可用规划算法 |
-
-### ⑥ 飞行监控 `/api/v1/monitoring`
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | `/monitoring/snapshot` | 提交健康快照（含异常检测） |
-| GET | `/monitoring/track/{id}` | 获取飞行轨迹 |
-| GET | `/monitoring/alerts/{id}` | 获取告警记录 |
-| DELETE | `/monitoring/alerts/{id}` | 清除告警 |
-| GET | `/monitoring/overview` | 监控总览 |
+---
 
 ## 内置算法
 
-### 路径规划
-
-| 算法 | 说明 | 适用场景 |
-|------|------|----------|
-| `astar` | A* 栅格搜索 | 静态已知环境，最优路径 |
-| `rrt` | 快速随机树 | 复杂障碍物环境，高维空间 |
-
-### 任务分配
-
-| 算法 | 说明 | 适用场景 |
-|------|------|----------|
-| `hungarian` | 匈牙利算法 | 最优一对一匹配，小规模 |
-| `auction` | 拍卖算法 | 分布式竞价，大规模动态场景 |
+| 类别 | 算法 | 说明 | 适用场景 |
+|------|------|------|----------|
+| 路径规划 | `astar` | A* 栅格搜索 | 静态已知环境，最优路径 |
+| 路径规划 | `rrt` | 快速随机树 | 复杂障碍物环境，高维空间 |
+| 任务分配 | `hungarian` | 匈牙利算法 | 最优一对一匹配，小规模 |
+| 任务分配 | `auction` | 拍卖算法 | 分布式竞价，大规模动态场景 |
 
 ## 配置
 
@@ -230,8 +430,6 @@ alembic downgrade -1
 ```bash
 uv run pytest tests/ -v
 ```
-
-覆盖：路径规划、任务分配、资源管理、适配评估、风险评估、飞行监控。
 
 ## 依赖
 
