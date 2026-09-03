@@ -1,12 +1,10 @@
-// ORM 模型 — UAV 表
+// ORM 模型 — UAV 表（PostGIS 几何列）
 
-import { sqliteTable, text, real } from 'drizzle-orm/sqlite-core';
+import { pgTable, text, real, geometry } from 'drizzle-orm/pg-core';
 
-export const uavs = sqliteTable('uavs', {
+export const uavs = pgTable('uavs', {
   id: text('id').primaryKey(),
-  x: real('x').notNull(),
-  y: real('y').notNull(),
-  z: real('z').notNull().default(0),
+  position: geometry('position', { type: 'point', srid: 4326 }).notNull(),
   speed: real('speed').notNull(),
   maxPayload: real('max_payload').notNull(),
   battery: real('battery').notNull(),

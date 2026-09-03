@@ -1,10 +1,10 @@
-// Drizzle ORM — 异步引擎 + 数据库实例
+// Drizzle ORM — PostgreSQL + PostGIS + pgvector
 
-import Database from 'better-sqlite3';
-import { drizzle } from 'drizzle-orm/better-sqlite3';
+import { drizzle } from 'drizzle-orm/postgres-js';
+import postgres from 'postgres';
 import * as schema from './models';
 
-const DB_PATH = process.env.UAV_DATABASE_URL || './data/uav.db';
+const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/st_risk';
 
-const sqlite = new Database(DB_PATH);
-export const db = drizzle(sqlite, { schema });
+const client = postgres(DATABASE_URL);
+export const db = drizzle(client, { schema });

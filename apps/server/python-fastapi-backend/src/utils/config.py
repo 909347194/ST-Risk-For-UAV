@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     app_version: str = "0.1.0"
     debug: bool = False
 
+    # 数据库
+    database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/st_risk"
+
     # 路径规划默认参数
     default_grid_resolution: float = 1.0
     default_search_margin: float = 50.0

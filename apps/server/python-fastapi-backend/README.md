@@ -8,7 +8,8 @@
 - **Web 框架**：FastAPI + Uvicorn
 - **包管理**：uv
 - **数据校验**：Pydantic ≥ 2.0
-- **数据库**：SQLAlchemy 2.0（异步）+ Alembic 迁移
+- **数据库**：PostgreSQL + PostGIS（空间数据）+ pgvector（向量搜索）
+- **ORM**：SQLAlchemy 2.0（异步）+ Alembic 迁移
 - **测试**：pytest + httpx
 
 ## 快速开始
@@ -403,7 +404,7 @@ graph LR
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
 | `UAV_DEBUG` | `false` | 调试模式 |
-| `UAV_DATABASE_URL` | `sqlite+aiosqlite:///./data/uav.db` | 数据库连接（异步） |
+| `UAV_DATABASE_URL` | `postgresql+asyncpg://postgres:postgres@localhost:5432/st_risk` | 数据库连接（异步） |
 | `UAV_DEFAULT_GRID_RESOLUTION` | `1.0` | 默认栅格分辨率 (m) |
 | `UAV_RISK_COLLISION_THRESHOLD` | `0.7` | 碰撞风险阈值 |
 | `UAV_RISK_WEATHER_THRESHOLD` | `0.6` | 气象风险阈值 |
@@ -440,7 +441,9 @@ uv run pytest tests/ -v
 - pydantic ≥ 2.0
 - pydantic-settings ≥ 2.0
 - sqlalchemy[asyncio] ≥ 2.0
-- aiosqlite ≥ 0.20
+- asyncpg ≥ 0.30
+- geoalchemy2 ≥ 0.15（PostGIS 支持）
+- pgvector ≥ 0.3（向量搜索）
 - alembic ≥ 1.14
 
 ### 开发

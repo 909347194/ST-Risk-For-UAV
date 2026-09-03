@@ -8,7 +8,8 @@ Agent 服务，基于 NestJS 构建，负责编排业务流程并调用 Python �
 - **框架**：NestJS 11
 - **包管理**：pnpm（monorepo workspace）
 - **数据校验**：Zod
-- **数据库**：Drizzle ORM + SQLite
+- **数据库**：PostgreSQL + PostGIS（空间数据）+ pgvector（向量搜索）
+- **ORM**：Drizzle ORM
 - **测试**：Jest
 
 ## 快速开始
@@ -182,7 +183,7 @@ graph LR
 |------|--------|------|
 | `PORT` | `3000` | 服务端口 |
 | `PYTHON_BACKEND_URL` | `http://localhost:8000` | Python 后端地址 |
-| `UAV_DATABASE_URL` | `./data/uav.db` | SQLite 数据库路径 |
+| `DATABASE_URL` | `postgresql://postgres:postgres@localhost:5432/st_risk` | PostgreSQL 连接 |
 
 ## 依赖
 
@@ -190,7 +191,8 @@ graph LR
 
 - @nestjs/common, @nestjs/core, @nestjs/platform-express
 - @st-risk/shared-ts（workspace 内部包）
-- drizzle-orm + better-sqlite3
+- drizzle-orm + postgres (PostgreSQL 驱动)
+- PostGIS（空间数据）+ pgvector（向量搜索）
 - zod
 - rxjs, reflect-metadata
 

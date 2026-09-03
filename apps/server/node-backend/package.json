@@ -18,7 +18,7 @@
     "@nestjs/platform-express": "^11.0.0",
     "@st-risk/shared-ts": "workspace:*",
     "drizzle-orm": "^0.38.0",
-    "better-sqlite3": "^11.0.0",
+    "postgres": "^3.4.0",
     "zod": "^3.24.0",
     "reflect-metadata": "^0.2.0",
     "rxjs": "^7.8.0"
@@ -26,7 +26,7 @@
   "devDependencies": {
     "@nestjs/cli": "^11.0.0",
     "@nestjs/testing": "^11.0.0",
-    "@types/better-sqlite3": "^7.6.0",
+    "@types/pg": "^8.0.0",
     "@types/express": "^5.0.0",
     "@types/node": "^22.0.0",
     "drizzle-kit": "^0.30.0",
