@@ -20,7 +20,8 @@ wheels/
 .venv/
 
 # === uv ===
-# uv.lock and .python-version are committed for reproducibility
+uv.lock
+.python-version
 
 # === IDE / Editor ===
 .vscode/

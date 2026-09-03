@@ -1,10 +1,7 @@
-# Docs
+# 项目文档
 
-项目设计文档、技术选型与架构决策。
-
-- [协作指南](CONTRIBUTING.md) — 分支策略、代码规范、PR 流程
-- [前端技术选型建议](前端技术选型建议.md) — UI 组件库、地图/3D 库、AI 交互组件选型分析
-- [后端技术选型建议](后端技术选型建议.md) — Node/Python 后端框架、Agent 底座、数据库、任务队列
-- [算法设计](algorithms/) — Python 端算法设计文档
-  - [任务分配](algorithms/task-allocation/) — 场景分析、三阶段架构、代价矩阵、待定问题
-- [论文框架](论文框架.md) — 硕士论文故事线、创新点、章节结构
+- [架构概览](architecture/README.md) — 系统架构、分层设计、技术选型
+- [算法设计](architecture/algorithms/) — 任务分配算法方案
+- [技术选型决策](architecture/decisions/) — 前后端选型思考
+- [部署指南](deployment/) — Docker 部署、环境配置
+- [研究资料](research/) — 论文分析、学术参考
