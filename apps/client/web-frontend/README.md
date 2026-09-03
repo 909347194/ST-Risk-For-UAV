@@ -23,9 +23,6 @@ pnpm --filter @st-risk/web-frontend dev
 
 # 构建
 pnpm --filter @st-risk/web-frontend build
-
-# 预览构建产物
-pnpm --filter @st-risk/web-frontend preview
 ```
 
 开发服务默认运行在 http://localhost:5173。
@@ -34,212 +31,223 @@ pnpm --filter @st-risk/web-frontend preview
 
 ### 双后端调用
 
-前端同时与两个后端通信，通过 Vite 代理和独立 API 客户端分离：
-
 ```mermaid
 graph LR
     FE[前端 :5173] -->|/api/v1/*| NODE[Node :3000]
     FE -->|/api/python/*| PY[Python :8000]
 
-    subgraph "Vite 开发代理"
-        P1["/api/v1 → localhost:3000"]
-        P2["/api/python → localhost:8000"]
-    end
-
     FE -.-> SHARED[@st-risk/shared-ts]
     NODE -.-> SHARED
-    PY -.->|对应| SHARED
 ```
 
 | 路径前缀 | 目标 | 用途 |
 |----------|------|------|
-| `/api/v1/*` | Node NestJS :3000 | Agent 业务逻辑、资源管理 |
-| `/api/python/*` | Python FastAPI :8000 | 算法计算（路径规划、任务分配、风险评估） |
+| `/api/v1/*` | Node NestJS | Agent 业务逻辑、资源管理 |
+| `/api/python/*` | Python FastAPI | 算法计算 |
 
-### 分层总览
+### 模块化结构
 
 ```mermaid
 graph TB
-    subgraph pages["pages/ — 页面"]
-        P1[HomePage]
-        P2[UavListPage]
-        P3[MonitoringPage]
+    subgraph modules["modules/ — 业务模块"]
+        M1[home]
+        M2[uav]
+        M3[agent]
+        M4[monitoring]
+        M5[planning]
     end
 
-    subgraph stores["stores/ — 状态管理 (Pinia)"]
-        S1[uav.ts]
+    subgraph shared["shared/ — 跨模块共享"]
+        S1[components]
+        S2[composables]
+        S3[stores]
     end
 
-    subgraph api["api/ — API 客户端（按后端分离）"]
-        A1[python/] -->|Axios| PY[Python FastAPI]
-        A2[node/] -->|Axios| NODE[Node NestJS]
+    subgraph api["api/ — 按后端分离"]
+        A1[python/]
+        A2[node/]
     end
 
-    subgraph shared["@st-risk/shared-ts"]
-        T[类型 + 枚举 + 工具]
-    end
+    modules -->|可引用| api
+    modules -->|可引用| shared
+    shared -.->|禁止引用| modules
+    shared -.->|禁止引用| api
 
-    pages --> stores
-    stores --> api
-    api -.->|类型| shared
+    style modules fill:#e3f2fd
+    style shared fill:#fff3e0
+    style api fill:#e8f5e9
 ```
 
 ### 目录结构
 
 ```
 src/
-├── main.ts                  # 应用入口
-├── App.vue                  # 根组件
+├── main.ts                          # 应用入口
+├── App.vue                          # 根组件
 │
-├── api/                     # API 客户端（按后端分离）
-│   ├── http.ts              #   Axios 实例工厂
-│   ├── python/              #   → Python FastAPI（算法）
+├── modules/                         # 业务模块（内聚）
+│   ├── home/                        #   首页
+│   │   ├── pages/HomePage.vue
 │   │   └── index.ts
-│   └── node/                #   → Node NestJS（Agent）
-│       └── index.ts
+│   ├── uav/                         #   ① 无人机资源管理
+│   │   ├── pages/
+│   │   ├── components/              #     模块内组件
+│   │   ├── composables/             #     模块内组合式函数
+│   │   ├── stores/                  #     模块内状态
+│   │   └── index.ts
+│   ├── agent/                       #   Agent 任务编排
+│   │   ├── pages/
+│   │   ├── components/
+│   │   ├── composables/
+│   │   ├── stores/
+│   │   └── index.ts
+│   ├── monitoring/                  #   飞行监控
+│   │   └── ...
+│   └── planning/                    #   航线规划
+│       └── ...
 │
-├── router/                  # 路由
+├── shared/                          # 跨模块共享（严格准入）
+│   ├── components/                  #   共享组件（需被 2+ 模块引用）
+│   │   └── MainLayout.vue
+│   ├── composables/                 #   共享组合式函数
+│   ├── stores/                      #   全局 Pinia stores
+│   │   └── uav.ts
 │   └── index.ts
 │
-├── stores/                  # Pinia 状态管理
-│   └── uav.ts
+├── api/                             # API 客户端（按后端分离）
+│   ├── http.ts                      #   Axios 实例工厂
+│   ├── python/                      #   → Python FastAPI
+│   └── node/                        #   → Node NestJS
 │
-├── pages/                   # 页面组件
-│   ├── HomePage.vue
-│   ├── UavListPage.vue
-│   ├── MonitoringPage.vue
-│   └── PlanningPage.vue
-│
-├── layouts/                 # 布局组件
-│   └── MainLayout.vue
-│
-├── components/              # 通用组件
-│   ├── common/
-│   └── uav/
-│
-├── composables/             # 组合式函数
-│
-├── domain/                  # 前端领域逻辑（可选）
-│
-├── utils/                   # 工具函数
-│
-└── assets/                  # 静态资源
-    └── styles/
+└── router/                          # 路由
+    └── index.ts
 ```
 
 ### 各层职责
 
 | 层 | 目录 | 职责 |
 |---|------|------|
-| 页面 | `pages/` | 路由对应的页面组件 |
-| 布局 | `layouts/` | 页面布局骨架（侧边栏、顶栏等） |
-| 组件 | `components/` | 可复用 UI 组件 |
-| 状态 | `stores/` | Pinia store，管理全局状态 |
-| API | `api/` | HTTP 客户端，按后端分离 |
-| 路由 | `router/` | Vue Router 路由配置 |
-| 组合式函数 | `composables/` | 可复用的组合式逻辑 |
-| 工具 | `utils/` | 通用工具函数 |
-| 资源 | `assets/` | 图片、样式等静态资源 |
+| 业务模块 | `modules/` | 功能内聚：pages + components + composables + stores |
+| 共享层 | `shared/` | 跨模块共享：组件、composables、全局 stores |
+| API 层 | `api/` | HTTP 客户端，按后端分离 |
+| 路由 | `router/` | Vue Router 配置 |
+
+## 依赖方向规则
+
+```mermaid
+graph LR
+    M[modules] -->|可引用| A[api]
+    M -->|可引用| S[shared]
+    S -.->|禁止| M
+    S -.->|禁止| A
+    M1[module A] -.->|禁止| M2[module B]
+```
+
+| 规则 | 说明 |
+|------|------|
+| modules → api | ✅ 通过 composables 调用 api 封装函数 |
+| modules → shared | ✅ 引用共享组件、composables、全局 stores |
+| modules → modules | ❌ 禁止互相引用 |
+| shared → modules | ❌ 保持纯净 |
+| shared → api | ❌ 保持纯净 |
+| 直接使用 Axios | ❌ 必须通过 api 层封装函数 |
 
 ## API 分离
 
-两个后端的调用完全分离，通过统一入口导出：
-
 ```typescript
-// api/index.ts
-export { pythonApi } from './python';  // 算法计算
-export { nodeApi } from './node';      // 业务逻辑
+// api/index.ts — 统一导出
+export { pythonApi } from './python';  // 算法
+export { nodeApi } from './node';      // Agent
 ```
 
-使用时按需引入：
+模块内通过 composables 调用：
 
 ```typescript
-import { pythonApi, nodeApi } from '@/api';
+// modules/uav/composables/useUav.ts
+import { nodeApi } from '@/api';
 
-// 调用 Python 端做路径规划
-const plan = await pythonApi.planPath({ uavId, taskId, start, goal });
-
-// 调用 Node 端执行 Agent 任务
-const result = await nodeApi.executeAgentTask({ uavId, taskId, instruction });
+export function useUav() {
+  async function fetchUavs() {
+    return nodeApi.listUavs();
+  }
+  return { fetchUavs };
+}
 ```
 
 ## 共享类型
 
-通过 `@st-risk/shared-ts` 包与 Node 后端共享类型：
+通过 `@st-risk/shared-ts` 与 Node 后端共享：
 
 ```typescript
-import type { UAV, Task, UAVStatus } from '@st-risk/shared-ts';
+import type { UAV, UAVStatus } from '@st-risk/shared-ts';
 ```
 
-## 开发新页面
+## 开发新模块
 
 ### 流程
 
 ```mermaid
 flowchart TD
-    A[1. 创建页面组件] --> B[2. 添加路由]
-    B --> C[3. 创建 Store]
-    C --> D[4. 调用 API]
+    A[1. 创建模块目录结构] --> B[2. 编写页面组件]
+    B --> C[3. 创建 composables 调用 API]
+    C --> D[4. 添加路由]
+    D --> E[5. 如需全局状态 → shared/stores]
 
-    style A fill:#e8f5e9
-    style B fill:#e8f5e9
-    style C fill:#e3f2fd
-    style D fill:#e3f2fd
+    style A fill:#e3f2fd
+    style B fill:#e3f2fd
+    style C fill:#e8f5e9
+    style D fill:#e8f5e9
+    style E fill:#fff3e0
 ```
 
-### Step 1 — 创建页面组件
+### Step 1 — 创建模块目录
+
+```
+src/modules/new-feature/
+├── pages/              # 页面组件
+├── components/         # 模块内组件（不外共享）
+├── composables/        # 模块内逻辑
+├── stores/             # 模块内状态
+└── index.ts            # 统一导出
+```
+
+### Step 2 — 编写页面组件
 
 ```vue
-<!-- src/pages/UavDetailPage.vue -->
+<!-- modules/new-feature/pages/ListPage.vue -->
 <template>
-  <div>
-    <h2>无人机详情 {{ uavId }}</h2>
-  </div>
+  <div>...</div>
 </template>
-
-<script setup lang="ts">
-import { useRoute } from 'vue-router';
-const route = useRoute();
-const uavId = route.params.id as string;
-</script>
 ```
 
-### Step 2 — 添加路由
+### Step 3 — 创建 composables 调用 API
 
 ```typescript
-// src/router/index.ts
-{
-  path: 'uavs/:id',
-  name: 'uav-detail',
-  component: () => import('@/pages/UavDetailPage.vue'),
+// modules/new-feature/composables/useFeature.ts
+import { nodeApi } from '@/api';  // ✅ 通过 api 层
+
+export function useFeature() {
+  async function fetchData() {
+    return nodeApi.someMethod();
+  }
+  return { fetchData };
 }
 ```
 
-### Step 3 — 创建 Store（如需）
+> ⚠️ 严禁直接使用 Axios，必须通过 `@/api` 封装函数。
+
+### Step 4 — 添加路由
 
 ```typescript
-// src/stores/uav-detail.ts
-export const useUavDetailStore = defineStore('uav-detail', () => {
-  const uav = ref<UAV | null>(null);
-
-  async function fetchUav(id: string) {
-    uav.value = await nodeApi.getUav(id);
-  }
-
-  return { uav, fetchUav };
-});
+// router/index.ts
+{ path: 'new-feature', component: () => import('@/modules/new-feature/pages/ListPage.vue') }
 ```
 
-### Step 4 — 调用 API
+### Step 5 — 模块导出
 
 ```typescript
-import { nodeApi, pythonApi } from '@/api';
-
-// Node 端：获取 UAV 数据
-const uav = await nodeApi.getUav(id);
-
-// Python 端：做风险评估
-const risk = await pythonApi.assessRisk({ uav, task, obstacles });
+// modules/new-feature/index.ts
+export { default as ListPage } from './pages/ListPage.vue';
 ```
 
 ## 环境变量
@@ -263,6 +271,5 @@ const risk = await pythonApi.assessRisk({ uav, task, obstacles });
 
 - vite ^6.0
 - @vitejs/plugin-vue
-- vue-tsc
-- typescript ^5.7
+- vue-tsc, typescript ^5.7
 - vitest
