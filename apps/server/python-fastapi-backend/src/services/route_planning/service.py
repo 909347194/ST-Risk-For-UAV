@@ -1,6 +1,6 @@
 """⑤ 航线规划 — 路径计算"""
 
-from src.models.models import Position, PathPlan, Obstacle
+from src.domain.models import Position, PathPlan, Obstacle
 from src.algorithms import get_algorithm, list_algorithms, AlgorithmCategory
 from src.utils.utils import distance
 

@@ -1,6 +1,6 @@
 """④ 任务分配 — 分配编排"""
 
-from src.models.models import UAV, Task, TaskAllocation
+from src.domain.models import UAV, Task, TaskAllocation
 from src.algorithms import get_algorithm, list_algorithms, AlgorithmCategory
 
 

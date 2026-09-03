@@ -1,6 +1,6 @@
 """③ 飞行风险评估仓储 — 评估结果缓存（可选）"""
 
-from src.models.models import RiskAssessment
+from src.domain.models import RiskAssessment
 from src.repositories.base import InMemoryRepository
 
 

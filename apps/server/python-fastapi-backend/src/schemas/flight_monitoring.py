@@ -2,7 +2,7 @@
 
 from pydantic import BaseModel, Field
 
-from src.models.models import UAVHealthSnapshot
+from src.domain.models import UAVHealthSnapshot
 
 
 class SnapshotSubmitRequest(BaseModel):

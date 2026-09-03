@@ -1,12 +1,12 @@
 """新增业务模块测试"""
 
-from src.models.models import UAV, Task, Position, Obstacle
-from src.models.enums import UAVStatus, RiskLevel
+from src.domain.models import UAV, Task, Position, Obstacle
+from src.domain.enums import UAVStatus, RiskLevel
 from src.services.uav_resource import register_uav, get_uav, list_uavs, update_uav_status
 from src.services.task_adaptability import evaluate, evaluate_all
 from src.services.risk_assessment import assess
 from src.services.flight_monitoring import record_snapshot, get_track
-from src.models.models import UAVHealthSnapshot
+from src.domain.models import UAVHealthSnapshot
 
 
 def _make_uav(uid: str = "uav-1") -> UAV:

@@ -1,7 +1,7 @@
 """③ 飞行风险评估模块"""
 
-from src.models.models import UAV, Task, Obstacle, PathPlan, RiskAssessment
-from src.models.enums import RiskLevel
+from src.domain.models import UAV, Task, Obstacle, PathPlan, RiskAssessment
+from src.domain.enums import RiskLevel
 from src.utils.utils import distance, clamp
 
 

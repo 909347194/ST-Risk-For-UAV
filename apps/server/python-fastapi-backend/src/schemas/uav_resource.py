@@ -2,7 +2,7 @@
 
 from pydantic import BaseModel, Field
 
-from src.models.models import UAV, UAVHealthSnapshot
+from src.domain.models import UAV, UAVHealthSnapshot
 
 
 class UAVCreateRequest(BaseModel):

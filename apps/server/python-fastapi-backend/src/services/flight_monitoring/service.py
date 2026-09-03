@@ -1,6 +1,6 @@
 """⑥ 飞行监控模块"""
 
-from src.models.models import UAVHealthSnapshot
+from src.domain.models import UAVHealthSnapshot
 from src.repositories.flight_log_repo import FlightLogRepository
 
 _repo = FlightLogRepository()

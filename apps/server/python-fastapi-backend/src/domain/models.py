@@ -2,7 +2,7 @@
 
 from pydantic import BaseModel, Field
 
-from src.models.enums import UAVStatus, TaskPriority, RiskLevel
+from src.domain.enums import UAVStatus, TaskPriority, RiskLevel
 
 
 # ── 基础 ──────────────────────────────────────────────

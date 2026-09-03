@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, HTTPException
 
-from src.models.exceptions import AlgorithmNotFoundError
+from src.domain.exceptions import AlgorithmNotFoundError
 from src.schemas.task_allocation import AllocateRequest, AllocateResponse
 from src.schemas.route_planning import PlanResponse
 from src.services import task_allocation as service

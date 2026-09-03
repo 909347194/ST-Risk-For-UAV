@@ -3,7 +3,7 @@
 import math
 import random
 
-from src.models.models import Position, Waypoint, Obstacle
+from src.domain.models import Position, Waypoint, Obstacle
 
 
 def _distance(a: tuple[float, float], b: tuple[float, float]) -> float:

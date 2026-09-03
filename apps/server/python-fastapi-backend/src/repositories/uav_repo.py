@@ -1,7 +1,7 @@
 """① 无人机资源仓储"""
 
-from src.models.models import UAV
-from src.models.enums import UAVStatus
+from src.domain.models import UAV
+from src.domain.enums import UAVStatus
 from src.repositories.base import InMemoryRepository
 
 

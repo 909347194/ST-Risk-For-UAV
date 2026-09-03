@@ -1,6 +1,6 @@
 """⑥ 飞行监控仓储 — 轨迹日志 + 告警记录"""
 
-from src.models.models import UAVHealthSnapshot
+from src.domain.models import UAVHealthSnapshot
 from src.repositories.base import InMemoryRepository
 
 

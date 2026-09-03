@@ -1,6 +1,6 @@
 """航线规划测试"""
 
-from src.models.models import Position
+from src.domain.models import Position
 from src.services.route_planning import plan_path
 
 
@@ -28,7 +28,7 @@ def test_rrt_basic():
 
 
 def test_unknown_algorithm():
-    from src.models.exceptions import AlgorithmNotFoundError
+    from src.domain.exceptions import AlgorithmNotFoundError
 
     start = Position(x=0, y=0)
     goal = Position(x=10, y=0)

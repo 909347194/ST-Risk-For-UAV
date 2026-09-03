@@ -1,6 +1,6 @@
 """② 任务适配评估仓储 — 评估结果缓存（可选）"""
 
-from src.models.models import AdaptabilityResult
+from src.domain.models import AdaptabilityResult
 from src.repositories.base import InMemoryRepository
 
 

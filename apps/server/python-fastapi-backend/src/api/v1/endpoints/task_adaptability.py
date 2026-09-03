@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, HTTPException
 
-from src.models.exceptions import InsufficientResourceError
+from src.domain.exceptions import InsufficientResourceError
 from src.schemas.task_adaptability import (
     AdaptabilityRequest,
     BatchAdaptabilityRequest,

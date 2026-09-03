@@ -2,7 +2,7 @@
 
 import itertools
 
-from src.models.models import UAV, Task, TaskAllocation
+from src.domain.models import UAV, Task, TaskAllocation
 from src.utils.utils import distance
 
 PRIORITY_WEIGHT = {"low": 1.0, "medium": 1.5, "high": 2.0, "urgent": 3.0}

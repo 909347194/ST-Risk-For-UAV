@@ -3,7 +3,7 @@
 from enum import Enum
 from typing import Any, Callable
 
-from src.models.exceptions import AlgorithmNotFoundError
+from src.domain.exceptions import AlgorithmNotFoundError
 
 
 class AlgorithmCategory(str, Enum):

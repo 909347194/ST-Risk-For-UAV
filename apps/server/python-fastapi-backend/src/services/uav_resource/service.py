@@ -1,8 +1,8 @@
 """① 无人机资源管理模块"""
 
-from src.models.models import UAV, UAVHealthSnapshot, Position
-from src.models.enums import UAVStatus
-from src.models.exceptions import InsufficientResourceError
+from src.domain.models import UAV, UAVHealthSnapshot, Position
+from src.domain.enums import UAVStatus
+from src.domain.exceptions import InsufficientResourceError
 from src.repositories.uav_repo import UAVRepository
 
 _repo = UAVRepository()

@@ -39,81 +39,89 @@ uv run pytest tests/ -v
 
 ```
 src/
-├── main.py                  # 入口
-├── db/                      # 数据库层：引擎、会话、ORM 模型
-│   ├── engine.py            #   异步引擎 + SessionLocal
-│   ├── base.py              #   DeclarativeBase
-│   └── models/              #   ORM 模型（映射到数据库表）
-├── models/                  # 数据模型层：核心实体、枚举、异常（Pydantic）
-├── utils/                   # 通用工具层：配置管理、几何计算
-├── algorithms/              # 算法层：统一注册表，可插拔算法实现
-│   ├── path_planning/       #   A*, RRT
-│   └── task_allocation/     #   匈牙利算法, 拍卖算法
-├── repositories/            # 数据访问层：封装 CRUD（SQLAlchemy 异步实现）
-├── services/                # 业务层：每个模块一个包
-│   ├── uav_resource/        #   ① 无人机资源管理
-│   ├── task_adaptability/   #   ② 任务适配评估
-│   ├── risk_assessment/     #   ③ 飞行风险评估
-│   ├── task_allocation/     #   ④ 任务分配
-│   ├── route_planning/      #   ⑤ 航线规划
-│   └── flight_monitoring/   #   ⑥ 飞行监控
-├── schemas/                 # 契约层：Request / Response Pydantic 模型
-└── routes/                  # 表现层：API 路由
+├── main.py                          # 入口
+│
+├── api/                             # 表现层
+│   └── v1/                          #   API 版本控制
+│       ├── api.py                   #     v1 路由汇总注册
+│       └── endpoints/               #     路由处理器
+│           ├── common.py            #       公共（health, algorithms）
+│           ├── uav_resource.py      #       ① 无人机资源管理
+│           ├── task_adaptability.py #       ② 任务适配评估
+│           ├── risk_assessment.py   #       ③ 飞行风险评估
+│           ├── task_allocation.py   #       ④ 任务分配
+│           ├── route_planning.py    #       ⑤ 航线规划
+│           └── flight_monitoring.py #       ⑥ 飞行监控
+│
+├── schemas/                         # API 契约层（Request / Response Pydantic 模型）
+│
+├── services/                        # 业务层
+│   ├── uav_resource/                #   ① 无人机资源管理
+│   ├── task_adaptability/           #   ② 任务适配评估
+│   ├── risk_assessment/             #   ③ 飞行风险评估
+│   ├── task_allocation/             #   ④ 任务分配
+│   ├── route_planning/              #   ⑤ 航线规划
+│   └── flight_monitoring/           #   ⑥ 飞行监控
+│
+├── domain/                          # 领域层（Pydantic 实体、枚举、异常）
+│   ├── models.py                    #   UAV, Task, PathPlan, RiskAssessment...
+│   ├── enums.py                     #   UAVStatus, TaskPriority, RiskLevel
+│   └── exceptions.py                #   AlgorithmNotFoundError, RiskExceededError...
+│
+├── algorithms/                      # 算法层（统一注册表，可插拔）
+│   ├── registry.py                  #   按 category 注册/查询
+│   ├── path_planning/               #   A*, RRT
+│   └── task_allocation/             #   匈牙利算法, 拍卖算法
+│
+├── repositories/                    # 数据访问层（SQLAlchemy 异步 CRUD）
+│   ├── base.py                      #   BaseRepository + InMemoryRepository
+│   ├── uav_repo.py
+│   ├── flight_log_repo.py
+│   ├── adaptability_repo.py
+│   └── risk_repo.py
+│
+├── db/                              # 数据库层（SQLAlchemy + Alembic）
+│   ├── engine.py                    #   异步引擎 + SessionLocal
+│   ├── base.py                      #   DeclarativeBase
+│   └── models/                      #   ORM 模型（表映射）
+│
+└── utils/                           # 通用工具层
+    ├── config.py                    #   Settings（pydantic-settings）
+    └── utils.py                     #   几何计算、通用工具函数
 ```
 
 ### 依赖方向
 
 ```
-Routes  →  Services  →  Algorithms  →  Models
-  │           │
- Schemas   Repositories  →  DB (SQLAlchemy Async)
-              │
-           Utils
+API (endpoints)  →  Services  →  Algorithms  →  Domain
+      │                │
+   Schemas        Repositories  →  DB (SQLAlchemy Async)
+                     │
+                  Utils
 ```
 
-### 命名约定
+### 各层职责
 
 | 目录 | 职责 |
 |------|------|
-| `db/` | 数据库层：异步引擎、会话工厂、ORM 模型定义 |
-| `models/` | 领域模型（Pydantic 实体、枚举、异常），零业务逻辑 |
-| `utils/` | 通用工具函数、配置管理 |
-| `algorithms/` | 纯算法实现，通过 `registry` 统一注册 |
-| `repositories/` | 数据访问接口，SQLAlchemy 异步 CRUD 实现 |
+| `api/v1/endpoints/` | 路由处理器，处理 HTTP 请求校验和响应格式化 |
+| `schemas/` | API 请求/响应 Pydantic 模型，仅定义契约 |
 | `services/` | 业务编排，每个模块为一个包（`__init__.py` + `service.py`） |
-| `schemas/` | API 请求/响应模型，仅定义契约 |
-| `routes/` | HTTP 路由，处理请求校验和响应格式化 |
+| `domain/` | 领域实体（Pydantic）、枚举、异常，零业务逻辑 |
+| `algorithms/` | 纯算法实现，通过 `registry` 统一注册 |
+| `repositories/` | 数据访问接口，SQLAlchemy 异步 CRUD |
+| `db/` | 数据库引擎、会话、ORM 模型定义 |
+| `utils/` | 通用工具函数、配置管理 |
 
-### 数据库
+### 领域模型 vs ORM 模型 vs API 模型
 
-使用 SQLAlchemy 2.0 异步模式 + Alembic 管理迁移：
-
-```python
-# 异步引擎
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-
-engine = create_async_engine("sqlite+aiosqlite:///./data/uav.db")
-
-# 异步会话
-async_session = AsyncSession(engine)
+```
+Domain (domain/models.py)     →  业务实体，纯 Pydantic，用于 services/algorithms
+ORM    (db/models/)           →  数据库表结构，SQLAlchemy 映射
+API    (schemas/)             →  请求/响应 DTO，Pydantic，用于路由层
 ```
 
-**ORM 模型**定义在 `db/models/`，映射到数据库表。
-**Pydantic 模型**定义在 `models/`，用于业务逻辑和 API 契约。
-两层模型分离，通过 repositories 层桥接。
-
-**Alembic 迁移**：
-
-```bash
-# 生成迁移脚本
-alembic revision --autogenerate -m "描述"
-
-# 执行迁移
-alembic upgrade head
-
-# 回滚一步
-alembic downgrade -1
-```
+三层模型分离，通过 repositories 层桥接 domain ↔ db。
 
 ## API 端点
 
@@ -201,6 +209,21 @@ alembic downgrade -1
 | `UAV_RISK_WEATHER_THRESHOLD` | `0.6` | 气象风险阈值 |
 | `UAV_RISK_BATTERY_THRESHOLD` | `0.8` | 电量风险阈值 |
 | `UAV_MIN_BATTERY_RESERVE` | `0.2` | 最低电量保留比例 |
+
+## 数据库
+
+SQLAlchemy 2.0 异步模式 + Alembic 迁移管理。
+
+```bash
+# 生成迁移脚本
+alembic revision --autogenerate -m "描述"
+
+# 执行迁移
+alembic upgrade head
+
+# 回滚一步
+alembic downgrade -1
+```
 
 ## 测试
 

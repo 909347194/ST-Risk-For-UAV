@@ -2,7 +2,7 @@
 
 import math
 
-from src.models.models import Position
+from src.domain.models import Position
 
 
 def distance(a: Position, b: Position) -> float:

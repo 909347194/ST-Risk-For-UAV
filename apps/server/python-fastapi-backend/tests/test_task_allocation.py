@@ -1,6 +1,6 @@
 """任务分配测试"""
 
-from src.models.models import UAV, Task, Position
+from src.domain.models import UAV, Task, Position
 from src.services.task_allocation import allocate
 
 
@@ -42,7 +42,7 @@ def test_more_tasks_than_uavs():
 
 
 def test_unknown_algorithm():
-    from src.models.exceptions import AlgorithmNotFoundError
+    from src.domain.exceptions import AlgorithmNotFoundError
 
     uavs = _make_uavs(1)
     tasks = _make_tasks(1)

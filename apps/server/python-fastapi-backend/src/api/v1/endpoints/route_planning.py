@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, HTTPException
 
-from src.models.exceptions import AlgorithmNotFoundError
+from src.domain.exceptions import AlgorithmNotFoundError
 from src.schemas.route_planning import PlanRequest, PlanResponse
 from src.services import route_planning as service
 

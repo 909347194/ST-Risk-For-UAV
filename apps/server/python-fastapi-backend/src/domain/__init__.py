@@ -1,6 +1,6 @@
 """数据模型层 — 核心模型、枚举、异常"""
 
-from src.models.models import (
+from src.domain.models import (
     Position,
     UAV,
     Task,
@@ -12,8 +12,8 @@ from src.models.models import (
     AdaptabilityResult,
     UAVHealthSnapshot,
 )
-from src.models.enums import UAVStatus, TaskPriority, RiskLevel
-from src.models.exceptions import (
+from src.domain.enums import UAVStatus, TaskPriority, RiskLevel
+from src.domain.exceptions import (
     DomainError,
     AlgorithmNotFoundError,
     InsufficientResourceError,

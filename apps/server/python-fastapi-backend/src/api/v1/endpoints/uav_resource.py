@@ -2,9 +2,9 @@
 
 from fastapi import APIRouter, HTTPException
 
-from src.models.models import UAV, Position
-from src.models.enums import UAVStatus
-from src.models.exceptions import InsufficientResourceError
+from src.domain.models import UAV, Position
+from src.domain.enums import UAVStatus
+from src.domain.exceptions import InsufficientResourceError
 from src.schemas.uav_resource import (
     UAVCreateRequest,
     UAVStatusUpdateRequest,

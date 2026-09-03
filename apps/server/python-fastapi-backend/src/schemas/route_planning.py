@@ -2,7 +2,7 @@
 
 from pydantic import BaseModel, Field
 
-from src.models.models import Position, Obstacle, PathPlan
+from src.domain.models import Position, Obstacle, PathPlan
 
 
 class PlanRequest(BaseModel):

@@ -1,6 +1,6 @@
 """② 无人机任务适配评估模块"""
 
-from src.models.models import UAV, Task, AdaptabilityResult
+from src.domain.models import UAV, Task, AdaptabilityResult
 from src.utils.utils import distance
 
 

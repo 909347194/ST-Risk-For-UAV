@@ -2,7 +2,7 @@
 
 from pydantic import BaseModel, Field
 
-from src.models.models import UAV, Task, TaskAllocation
+from src.domain.models import UAV, Task, TaskAllocation
 
 
 class AllocateRequest(BaseModel):

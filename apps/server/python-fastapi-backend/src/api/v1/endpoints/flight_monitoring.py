@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter
 
-from src.models.models import UAVHealthSnapshot, Position
+from src.domain.models import UAVHealthSnapshot, Position
 from src.schemas.flight_monitoring import (
     SnapshotSubmitRequest,
     SnapshotSubmitResponse,
