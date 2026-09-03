@@ -38,7 +38,7 @@ pnpm --filter @st-risk/node-backend test
 graph LR
     FE[前端] -->|HTTP| NODE[Node NestJS]
     NODE -->|HTTP| PY[Python FastAPI]
-    NODE -->|DB| DB[(SQLite)]
+    NODE -->|DB| DB[(PostgreSQL)]
 
     subgraph Node 后端
         NODE
@@ -154,6 +154,240 @@ graph LR
 - `repositories/` — 数据访问
 
 新增功能模块时，只需在 `modules/` 下创建新目录，包含上述四个文件即可。
+
+## 开发新接口
+
+以「无人机管理」模块为例，演示从零开发一个新模块的完整流程。
+
+### 流程总览
+
+```mermaid
+flowchart TD
+    A[1. 定义共享类型] --> B[2. 创建 DTO]
+    B --> C[3. 实现 Repository]
+    C --> D[4. 实现 Service]
+    D --> E[5. 编写 Controller]
+    E --> F[6. 注册 Module]
+    F --> G[7. 测试验证]
+
+    style A fill:#e1f5fe
+    style B fill:#e1f5fe
+    style C fill:#fff3e0
+    style D fill:#fff3e0
+    style E fill:#e8f5e9
+    style F fill:#e8f5e9
+    style G fill:#fce4ec
+```
+
+### 请求流转
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Controller as controller.ts
+    participant Pipe as Zod Pipe
+    participant Service as service.ts
+    participant Repo as repository.ts
+    participant DB as PostgreSQL
+    participant PyBackend as Python 后端
+
+    Client->>Controller: POST /api/v1/uavs
+    Controller->>Pipe: 校验请求体 (Zod)
+    Pipe-->>Controller: 校验通过
+    Controller->>Service: createUav(dto)
+    Service->>Repo: save(uav)
+    Repo->>DB: INSERT
+    DB-->>Repo: 结果
+    Repo-->>Service: UAV
+    Service-->>Controller: UAV
+    Controller-->>Client: 201 Created
+```
+
+### Step 1 — 定义共享类型
+
+在 `packages/shared-ts/src/domain/models.ts` 中添加接口（如前后端都需要）：
+
+```typescript
+// packages/shared-ts/src/domain/models.ts
+export interface UAV {
+  id: string;
+  position: Position;
+  speed: number;
+  maxPayload: number;
+  battery: number;
+  status: UAVStatus;
+}
+```
+
+### Step 2 — 创建 DTO
+
+在模块目录下创建 Zod 校验 schema：
+
+```typescript
+// src/modules/uav/dto/create-uav.dto.ts
+import { z } from 'zod';
+
+export const CreateUavDto = z.object({
+  id: z.string(),
+  x: z.number(),
+  y: z.number(),
+  z: z.number().default(0),
+  speed: z.number().positive(),
+  maxPayload: z.number().nonnegative(),
+  battery: z.number().positive(),
+});
+
+export type CreateUavInput = z.infer<typeof CreateUavDto>;
+```
+
+### Step 3 — 实现 Repository
+
+```typescript
+// src/modules/uav/repositories/uav.repo.ts
+import { Injectable } from '@nestjs/common';
+import { db } from '@/db';
+import { uavs } from '@/db/models';
+import type { UAV } from '@st-risk/shared-ts';
+
+@Injectable()
+export class UavRepository {
+  async save(uav: UAV): Promise<UAV> {
+    await db.insert(uavs).values(uav);
+    return uav;
+  }
+
+  async findById(id: string): Promise<UAV | null> {
+    const result = await db.select().from(uavs).where(eq(uavs.id, id));
+    return result[0] ?? null;
+  }
+}
+```
+
+### Step 4 — 实现 Service
+
+```typescript
+// src/modules/uav/uav.service.ts
+import { Injectable } from '@nestjs/common';
+import { PythonBackendClient } from '@/clients';
+import { UavRepository } from './repositories/uav.repo';
+import type { UAV } from '@st-risk/shared-ts';
+
+@Injectable()
+export class UavService {
+  constructor(
+    private readonly repo: UavRepository,
+    private readonly pythonClient: PythonBackendClient,  // 按需调用 Python 端
+  ) {}
+
+  async createUav(data: CreateUavInput): Promise<UAV> {
+    const uav: UAV = { ...data, status: UAVStatus.IDLE };
+    return this.repo.save(uav);
+  }
+}
+```
+
+### Step 5 — 编写 Controller
+
+```typescript
+// src/modules/uav/uav.controller.ts
+import { Controller, Post, Body } from '@nestjs/common';
+import { ZodValidationPipe } from '@/shared';
+import { UavService } from './uav.service';
+import { CreateUavDto } from './dto/create-uav.dto';
+
+@Controller('uavs')
+export class UavController {
+  constructor(private readonly uavService: UavService) {}
+
+  @Post()
+  async create(@Body(new ZodValidationPipe(CreateUavDto)) body: Record<string, unknown>) {
+    return this.uavService.createUav(body as CreateUavInput);
+  }
+}
+```
+
+### Step 6 — 注册 Module
+
+```typescript
+// src/modules/uav/uav.module.ts
+import { Module } from '@nestjs/common';
+import { UavController } from './uav.controller';
+import { UavService } from './uav.service';
+import { UavRepository } from './repositories/uav.repo';
+
+@Module({
+  controllers: [UavController],
+  providers: [UavService, UavRepository],
+  exports: [UavService],
+})
+export class UavModule {}
+```
+
+然后在 `app.module.ts` 中注册：
+
+```typescript
+// src/app/app.module.ts
+import { UavModule } from '@/modules/uav/uav.module';
+
+@Module({
+  imports: [CommonModule, AgentModule, UavModule],  // ← 加上
+  ...
+})
+export class AppModule {}
+```
+
+### Step 7 — 测试验证
+
+```bash
+# 启动开发服务
+pnpm --filter @st-risk/node-backend dev
+
+# 访问 Swagger 文档
+open http://localhost:3000/api/docs
+```
+
+### 涉及文件清单
+
+```mermaid
+graph LR
+    subgraph 新增/修改
+        A[shared-ts/domain/models.ts]
+        B[modules/uav/dto/create-uav.dto.ts]
+        C[modules/uav/repositories/uav.repo.ts]
+        D[modules/uav/uav.service.ts]
+        E[modules/uav/uav.controller.ts]
+        F[modules/uav/uav.module.ts]
+        G[app/app.module.ts]
+    end
+
+    A -->|被引用| B
+    A -->|被引用| C
+    A -->|被引用| D
+    B -->|被引用| E
+    C -->|被引用| D
+    D -->|被引用| E
+    F -->|被注册| G
+
+    style A fill:#e1f5fe
+    style B fill:#fff3e0
+    style C fill:#fff3e0
+    style D fill:#fff3e0
+    style E fill:#e8f5e9
+    style F fill:#e8f5e9
+    style G fill:#fce4ec
+```
+
+| 步骤 | 文件 | 动作 |
+|------|------|------|
+| 1 | `packages/shared-ts/src/domain/models.ts` | 修改 — 添加接口 |
+| 2 | `modules/uav/dto/create-uav.dto.ts` | 新增 — Zod 校验 |
+| 3 | `modules/uav/repositories/uav.repo.ts` | 新增 — 数据访问 |
+| 4 | `modules/uav/uav.service.ts` | 新增 — 业务逻辑 |
+| 5 | `modules/uav/uav.controller.ts` | 新增 — 路由处理器 |
+| 6 | `modules/uav/uav.module.ts` | 新增 — 模块注册 |
+| 7 | `app/app.module.ts` | 修改 — 导入新模块 |
+
+---
 
 ## 共享类型
 
