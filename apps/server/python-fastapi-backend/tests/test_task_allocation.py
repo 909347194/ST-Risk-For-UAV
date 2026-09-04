@@ -274,3 +274,16 @@ def test_de_listed_in_algorithms():
     from src.services import task_allocation as service
     names = [a["name"] for a in service.list_available_algorithms()]
     assert "de" in names
+
+
+def test_de_invalid_params_raise():
+    uavs = [_de_uav(0, 0, "uav-0"), _de_uav(100, 0, "uav-1")]
+    tasks = [_de_task(10, 0, "task-0")]
+    with pytest.raises(ValueError):
+        DiscreteDESolver(uavs, tasks, pop_size=3)
+    with pytest.raises(ValueError):
+        DiscreteDESolver(uavs, tasks, uav_max_ranges=[100.0])  # 长度 1 ≠ N_uav 2
+    with pytest.raises(ValueError):
+        DiscreteDESolver(uavs, tasks, uav_max_ranges=[0.0, 100.0])
+    with pytest.raises(ValueError):
+        DiscreteDESolver(uavs, tasks, heuristic_ratio=1.5)

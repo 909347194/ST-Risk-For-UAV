@@ -61,6 +61,19 @@ class DiscreteDESolver:
         self.penalty_weight = penalty_weight
         self.rng = np.random.default_rng(seed)
 
+        # 参数校验 — 无效值提前以清晰错误拒绝，而非在进化中途崩溃
+        if self.pop_size < 4:
+            raise ValueError(f"pop_size 必须 >= 4（变异需 3 个互异候选个体），当前: {self.pop_size}")
+        if not 0.0 < self.heuristic_ratio <= 1.0:
+            raise ValueError(f"heuristic_ratio 必须在 (0, 1] 区间，当前: {self.heuristic_ratio}")
+        if uav_max_ranges is not None:
+            if len(uav_max_ranges) != self.N_uav:
+                raise ValueError(
+                    f"uav_max_ranges 长度必须等于 UAV 数 ({self.N_uav})，当前: {len(uav_max_ranges)}"
+                )
+            if any(r <= 0 for r in uav_max_ranges):
+                raise ValueError(f"uav_max_ranges 各项必须 > 0，当前: {uav_max_ranges}")
+
         # 最大航程: 显式参数优先, 否则按电池/能耗率推算
         if uav_max_ranges is not None:
             self.uav_max_ranges = list(uav_max_ranges)
