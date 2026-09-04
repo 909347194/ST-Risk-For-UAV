@@ -202,7 +202,7 @@ class DiscreteDESolver:
         gen: int,
     ) -> np.ndarray:
         _, CR = self._adaptive_params(gen)
-        trial = target.copy()
+        trial = target.astype(float)
         j_rand = int(self.rng.integers(self.N_task))
         rand = self.rng.random(self.N_task)
         for j in range(self.N_task):

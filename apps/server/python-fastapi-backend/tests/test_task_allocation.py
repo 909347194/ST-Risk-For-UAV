@@ -131,3 +131,14 @@ def test_de_crossover_copies_at_least_one_gene():
     mutant = target.astype(float) + 100.0  # 任何被复制的位都必然不同于 target
     trial = solver._crossover(target, mutant, 0)
     assert not np.array_equal(trial, target)
+
+
+def test_de_crossover_preserves_fractional_genes():
+    uavs = [_de_uav(0, 0, "uav-0"), _de_uav(100, 0, "uav-1")]
+    tasks = [_de_task(10, 0, "task-0"), _de_task(90, 0, "task-1"), _de_task(50, 0, "task-2")]
+    solver = DiscreteDESolver(uavs, tasks, seed=0)
+    target = np.array([0, 0, 0])
+    mutant = target.astype(float) + 0.6  # |mutant−target| < 1：旧实现会截断退化为 target
+    trial = solver._crossover(target, mutant, 0)
+    assert trial.dtype == float
+    assert not np.array_equal(trial, target)  # j_rand 保证在连续空间成立
