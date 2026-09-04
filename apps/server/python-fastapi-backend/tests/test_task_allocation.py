@@ -6,7 +6,7 @@ import pytest
 from src.domain.models import UAV, Task, Position
 from src.domain.enums import TaskPriority
 from src.services.task_allocation import allocate
-from src.algorithms.task_allocation.differential_evolution import DiscreteDESolver
+from src.algorithms.task_allocation.differential_evolution import DiscreteDESolver, de_allocate
 
 
 def _make_uavs(n: int) -> list[UAV]:
@@ -208,3 +208,69 @@ def test_de_solve_seed_reproducible():
     a1, _ = s1.solve()
     a2, _ = s2.solve()
     assert a1 == a2
+
+
+def test_de_basic():
+    uavs = _make_uavs(2)
+    tasks = _make_tasks(3)
+    allocations, unassigned = de_allocate(uavs, tasks, seed=42, pop_size=20, generations=30)
+    assert unassigned == []
+    pairs = {(a.uav_id, a.task_id) for a in allocations}
+    assert len(pairs) == 3  # 全分配、无重复对
+    assert all(a.estimated_cost >= 0 for a in allocations)
+
+
+def test_de_empty_inputs():
+    uavs = [_de_uav(0, 0, "uav-0")]
+    task = _de_task(10, 0, "task-0")
+    allocations, unassigned = de_allocate([], [task])
+    assert allocations == [] and unassigned == ["task-0"]
+    allocations, unassigned = de_allocate(uavs, [])
+    assert allocations == [] and unassigned == []
+
+
+def test_de_ignores_unknown_kwargs():
+    uavs = _make_uavs(2)
+    tasks = _make_tasks(2)
+    allocations, _ = de_allocate(uavs, tasks, seed=0, unknown_thing=123)
+    assert len(allocations) == 2
+
+
+def test_de_cluster_reasonable():
+    uavs = [_de_uav(0, 0, "uav-0"), _de_uav(100, 0, "uav-1")]
+    tasks = [
+        _de_task(5, 5, "task-0"),
+        _de_task(-5, 5, "task-1"),
+        _de_task(105, 5, "task-2"),
+        _de_task(95, 5, "task-3"),
+    ]
+    allocations, unassigned = de_allocate(uavs, tasks, pop_size=40, generations=100, seed=0)
+    assert unassigned == []
+    by_task = {a.task_id: a.uav_id for a in allocations}
+    assert by_task["task-0"] == "uav-0"
+    assert by_task["task-1"] == "uav-0"
+    assert by_task["task-2"] == "uav-1"
+    assert by_task["task-3"] == "uav-1"
+
+
+def test_de_seed_reproducible():
+    uavs = [_de_uav(0, 0, "uav-0"), _de_uav(100, 0, "uav-1")]
+    tasks = [_de_task(10, 0, "task-0"), _de_task(90, 0, "task-1"), _de_task(50, 0, "task-2")]
+    a1, _ = de_allocate(uavs, tasks, seed=42)
+    a2, _ = de_allocate(uavs, tasks, seed=42)
+    key = lambda a: sorted((x.uav_id, x.task_id, x.estimated_cost) for x in a)
+    assert key(a1) == key(a2)
+
+
+def test_de_via_service():
+    uavs = _make_uavs(2)
+    tasks = _make_tasks(3)
+    allocations, unassigned = allocate(uavs, tasks, algorithm="de", params={"seed": 0, "pop_size": 10, "generations": 10})
+    assert len(allocations) == 3
+    assert unassigned == []
+
+
+def test_de_listed_in_algorithms():
+    from src.services import task_allocation as service
+    names = [a["name"] for a in service.list_available_algorithms()]
+    assert "de" in names

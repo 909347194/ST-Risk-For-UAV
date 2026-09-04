@@ -356,3 +356,58 @@ class DiscreteDESolver:
             "history_min": history_min,
             "history_avg": history_avg,
         }
+
+
+def de_allocate(
+    uavs: list[UAV],
+    tasks: list[Task],
+    pop_size: int = 50,
+    generations: int = 100,
+    F_init: float = 0.9,
+    CR_init: float = 0.5,
+    elite_guide_prob: float = 0.3,
+    heuristic_ratio: float = 0.2,
+    uav_max_ranges: list[float] | None = None,
+    energy_per_meter: float = 0.1,
+    penalty_weight: float = 500.0,
+    seed: int | None = None,
+    **kwargs,
+) -> tuple[list[TaskAllocation], list[str]]:
+    """差分进化任务分配 — 与 hungarian/auction 同签名
+
+    返回 (allocations, unassigned)。allocations 按每架 UAV 的执行顺序
+    排列（按 uav_id 分组即得任务序列）；DE 编码覆盖全部任务，
+    unassigned 恒为空。
+    """
+    if not uavs or not tasks:
+        return [], [t.id for t in tasks]
+
+    solver = DiscreteDESolver(
+        uavs=uavs,
+        tasks=tasks,
+        pop_size=pop_size,
+        generations=generations,
+        F_init=F_init,
+        CR_init=CR_init,
+        elite_guide_prob=elite_guide_prob,
+        heuristic_ratio=heuristic_ratio,
+        uav_max_ranges=uav_max_ranges,
+        energy_per_meter=energy_per_meter,
+        penalty_weight=penalty_weight,
+        seed=seed,
+    )
+    allocation, _stats = solver.solve()
+
+    allocations: list[TaskAllocation] = []
+    for uav_idx, seq in allocation.items():
+        costs = solver.compute_path_costs({uav_idx: seq})[uav_idx]
+        uav = uavs[uav_idx]
+        for k, task_idx in enumerate(seq):
+            allocations.append(
+                TaskAllocation(
+                    uav_id=uav.id,
+                    task_id=tasks[task_idx].id,
+                    estimated_cost=costs[k],
+                )
+            )
+    return allocations, []
