@@ -92,3 +92,42 @@ def test_de_compute_path_costs():
     solver = DiscreteDESolver(uavs, tasks, seed=0)
     costs = solver.compute_path_costs({0: [0, 1]})
     assert costs[0] == pytest.approx([10.0, 20.0])
+
+
+def test_de_init_population():
+    uavs = [_de_uav(0, 0, "uav-0"), _de_uav(100, 0, "uav-1")]
+    tasks = [_de_task(10, 0, "task-0"), _de_task(90, 0, "task-1"), _de_task(50, 0, "task-2")]
+    solver = DiscreteDESolver(uavs, tasks, pop_size=20, seed=0)
+    pop = solver._init_population()
+    assert pop.shape == (20, 3)
+    assert ((pop >= 0) & (pop < 2)).all()
+
+
+def test_de_adaptive_params():
+    uavs = [_de_uav(0, 0, "uav-0"), _de_uav(100, 0, "uav-1")]
+    tasks = [_de_task(10, 0, "task-0")]
+    solver = DiscreteDESolver(uavs, tasks, generations=10, seed=0)
+    F0, CR0 = solver._adaptive_params(0)
+    assert F0 == pytest.approx(0.9)
+    assert CR0 == pytest.approx(0.5)
+    F9, CR9 = solver._adaptive_params(9)
+    assert F9 == pytest.approx(0.36)
+    assert CR9 == pytest.approx(0.9)
+
+
+def test_de_repair():
+    uavs = [_de_uav(0, 0, "uav-0"), _de_uav(100, 0, "uav-1")]
+    tasks = [_de_task(10, 0, "task-0")]
+    solver = DiscreteDESolver(uavs, tasks, seed=0)
+    ind = np.array([-0.4, 0.4, 1.6, 2.9])
+    assert solver._repair(ind).tolist() == [0, 0, 1, 1]
+
+
+def test_de_crossover_copies_at_least_one_gene():
+    uavs = [_de_uav(0, 0, "uav-0"), _de_uav(100, 0, "uav-1")]
+    tasks = [_de_task(10, 0, "task-0"), _de_task(90, 0, "task-1"), _de_task(50, 0, "task-2")]
+    solver = DiscreteDESolver(uavs, tasks, seed=0)
+    target = solver._init_population()[0]
+    mutant = target.astype(float) + 100.0  # 任何被复制的位都必然不同于 target
+    trial = solver._crossover(target, mutant, 0)
+    assert not np.array_equal(trial, target)

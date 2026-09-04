@@ -133,3 +133,84 @@ class DiscreteDESolver:
                 current_idx = self.N_uav + tid
             costs[uav_id] = seg
         return costs
+
+    # ———— 自适应参数 ————
+    def _adaptive_params(self, gen: int) -> tuple[float, float]:
+        progress = gen / max(self.gens - 1, 1)
+        F = self.F_init * (1.0 - 0.6 * progress)   # 0.9 → 0.36
+        CR = self.CR_init + 0.4 * progress          # 0.5 → 0.9
+        return F, CR
+
+    # ———— 启发式初始化 ————
+    def _init_population(self) -> np.ndarray:
+        n_heuristic = max(1, int(self.pop_size * self.heuristic_ratio))
+        n_random = self.pop_size - n_heuristic
+        pop: list[np.ndarray] = []
+
+        # 贪心构造 + 扰动
+        for _ in range(n_heuristic):
+            ind = np.zeros(self.N_task, dtype=int)
+            for tid in range(self.N_task):
+                best_uav = int(np.argmin(self.cost_matrix[: self.N_uav, self.N_uav + tid]))
+                ind[tid] = best_uav
+            # 10% 随机翻转
+            flip_mask = self.rng.random(self.N_task) < 0.1
+            ind[flip_mask] = self.rng.integers(0, self.N_uav, size=int(flip_mask.sum()))
+            pop.append(ind)
+
+        # 随机个体
+        for _ in range(n_random):
+            pop.append(self.rng.integers(0, self.N_uav, size=self.N_task))
+
+        return np.array(pop)
+
+    # ———— 精英引导变异 ————
+    def _mutate(
+        self,
+        population: np.ndarray,
+        idx: int,
+        best_idx: int,
+        gen: int,
+    ) -> np.ndarray:
+        F, _ = self._adaptive_params(gen)
+        candidates = [i for i in range(self.pop_size) if i != idx]
+
+        if self.rng.random() < self.elite_guide_prob and best_idx != idx:
+            # DE/current-to-best/1
+            r1, r2 = population[
+                self.rng.choice(candidates, 2, replace=False)
+            ]
+            mutant = (
+                population[idx].astype(float)
+                + F * (population[best_idx].astype(float) - population[idx].astype(float))
+                + F * (r1.astype(float) - r2.astype(float))
+            )
+        else:
+            # DE/rand/1
+            r1, r2, r3 = population[
+                self.rng.choice(candidates, 3, replace=False)
+            ]
+            mutant = r1.astype(float) + F * (r2.astype(float) - r3.astype(float))
+
+        return mutant
+
+    # ———— 二项式交叉 ————
+    def _crossover(
+        self,
+        target: np.ndarray,
+        mutant: np.ndarray,
+        gen: int,
+    ) -> np.ndarray:
+        _, CR = self._adaptive_params(gen)
+        trial = target.copy()
+        j_rand = int(self.rng.integers(self.N_task))
+        rand = self.rng.random(self.N_task)
+        for j in range(self.N_task):
+            if rand[j] < CR or j == j_rand:
+                trial[j] = mutant[j]
+        return trial
+
+    # ———— 修复 ————
+    def _repair(self, individual: np.ndarray) -> np.ndarray:
+        """取整 → 钳位"""
+        return np.clip(np.round(individual).astype(int), 0, self.N_uav - 1)
