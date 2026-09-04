@@ -293,3 +293,66 @@ class DiscreteDESolver:
             + gamma * penalty_weight * violations
         )
         return fitness
+
+    # ———— 适应度 ————
+    def _fitness(self, individual: np.ndarray) -> float:
+        return self.evaluate_constrained(
+            list(individual),
+            alpha=self.alpha,
+            beta=self.beta,
+            gamma=self.gamma,
+            penalty_weight=self.penalty_weight,
+        )
+
+    # ———— 收敛检测 ————
+    @staticmethod
+    def _find_convergence(history_min: list[float], tol: float = 0.01) -> int:
+        for i in range(len(history_min) - 5):
+            if abs(history_min[i] - history_min[i + 5]) < tol:
+                return i
+        return len(history_min) - 1
+
+    # ———— 主循环 ————
+    def solve(self) -> tuple[dict[int, list[int]], dict]:
+        t0 = time.perf_counter()
+
+        population = self._init_population()
+        fitness = np.array([self._fitness(ind) for ind in population])
+
+        best_idx = int(np.argmin(fitness))
+        best_ind = population[best_idx].copy()
+        best_cost = float(fitness[best_idx])
+
+        history_min = [best_cost]
+        history_avg = [float(np.mean(fitness))]
+
+        for gen in range(self.gens):
+            for i in range(self.pop_size):
+                mutant = self._mutate(population, i, best_idx, gen)
+                trial_cont = self._crossover(population[i], mutant, gen)
+                trial_int = self._repair(trial_cont)
+                trial_fit = self._fitness(trial_int)
+
+                if trial_fit <= fitness[i]:
+                    population[i] = trial_int
+                    fitness[i] = trial_fit
+                    if trial_fit < best_cost:
+                        best_ind = trial_int.copy()
+                        best_cost = trial_fit
+
+            history_min.append(best_cost)
+            history_avg.append(float(np.mean(fitness)))
+
+        elapsed = time.perf_counter() - t0
+        best_allocation = self.decode(list(best_ind))
+        convergence_gen = self._find_convergence(history_min)
+
+        return best_allocation, {
+            "algorithm": "de",
+            "best_cost": best_cost,
+            "convergence_gen": convergence_gen,
+            "total_generations": self.gens,
+            "time_seconds": round(elapsed, 4),
+            "history_min": history_min,
+            "history_avg": history_avg,
+        }

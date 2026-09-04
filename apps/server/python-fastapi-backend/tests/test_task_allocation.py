@@ -178,3 +178,33 @@ def test_de_evaluate_basic_prefers_shorter_path():
     optimal = solver.evaluate([0, 1])   # 各自就近
     crossed = solver.evaluate([1, 0])   # 交叉远飞
     assert optimal < crossed
+
+
+def test_de_find_convergence():
+    assert DiscreteDESolver._find_convergence([1.0, 1.0, 1.0, 1.0, 1.0, 1.0]) == 0
+    assert DiscreteDESolver._find_convergence([0.0, 0.1, 0.2, 0.3, 0.4, 0.5]) == 5
+
+
+def test_de_solve_covers_tasks_and_stats():
+    uavs = [_de_uav(0, 0, "uav-0"), _de_uav(100, 0, "uav-1")]
+    tasks = [_de_task(10, 0, "task-0"), _de_task(90, 0, "task-1"), _de_task(50, 0, "task-2")]
+    solver = DiscreteDESolver(uavs, tasks, pop_size=20, generations=30, seed=0)
+    allocation, stats = solver.solve()
+    assigned = sorted(t for seq in allocation.values() for t in seq)
+    assert assigned == [0, 1, 2]
+    assert set(allocation.keys()) == {0, 1}
+    assert stats["algorithm"] == "de"
+    assert stats["convergence_gen"] <= stats["total_generations"]
+    assert len(stats["history_min"]) == stats["total_generations"] + 1
+    assert stats["time_seconds"] >= 0
+    assert stats["best_cost"] > 0
+
+
+def test_de_solve_seed_reproducible():
+    uavs = [_de_uav(0, 0, "uav-0"), _de_uav(100, 0, "uav-1")]
+    tasks = [_de_task(10, 0, "task-0"), _de_task(90, 0, "task-1"), _de_task(50, 0, "task-2")]
+    s1 = DiscreteDESolver(uavs, tasks, seed=42)
+    s2 = DiscreteDESolver(uavs, tasks, seed=42)
+    a1, _ = s1.solve()
+    a2, _ = s2.solve()
+    assert a1 == a2
