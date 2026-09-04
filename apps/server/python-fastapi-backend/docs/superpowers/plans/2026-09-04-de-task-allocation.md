@@ -418,7 +418,7 @@ Expected: FAIL — `AttributeError: 'DiscreteDESolver' object has no attribute '
         gen: int,
     ) -> np.ndarray:
         _, CR = self._adaptive_params(gen)
-        trial = target.copy()
+        trial = target.astype(float)  # 人工裁决: 保留浮点管线，_repair 的 round 完成离散化（参考代码此处会 int 截断）
         j_rand = int(self.rng.integers(self.N_task))
         rand = self.rng.random(self.N_task)
         for j in range(self.N_task):
