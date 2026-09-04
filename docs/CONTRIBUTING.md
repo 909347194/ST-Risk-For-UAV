@@ -5,12 +5,14 @@
 采用 **GitHub Flow** 简化流程，适合中小团队快速迭代。
 
 ```
-master (main) ──────────────────────────────────▶ 始终可部署
+develop ──────────────────────────────────▶ 主开发分支（默认）
   │
   ├── feat/user-auth ────────────▶ 功能分支
   ├── feat/risk-model ───────────▶ 功能分支
   ├── fix/login-bug ─────────────▶ 修复分支
   └── docs/api-spec ─────────────▶ 文档分支
+
+master ──────────────────────────────────▶ 稳定版本（发布用）
 ```
 
 ### 分支命名规范
@@ -39,9 +41,9 @@ master (main) ──────────────────────
 ### 1. 开始新功能
 
 ```bash
-# 确保本地 master 最新
-git checkout master
-git pull origin master
+# 确保本地 develop 最新
+git checkout develop
+git pull origin develop
 
 # 创建功能分支
 git checkout -b feat/my-feature
@@ -120,17 +122,17 @@ feat(python-api): add UAV trajectory risk endpoint
 ### 4. Code Review
 
 - 小团队灵活处理：**自审通过即可合并**，重要改动 @队友 看一眼
-- 使用 **Squash Merge** 保持 master 历史干净
+- 使用 **Squash Merge** 保持 develop 历史干净
 - 合并后删除功能分支
 
 ### 5. 合并策略
 
 ```
-功能分支 ──Squash Merge──▶ master
+功能分支 ──Squash Merge──▶ develop
 ```
 
-- 每个 PR 压缩为一条 commit 进入 master
-- master 历史清晰，每个 commit 对应一个完整功能/修复
+- 每个 PR 压缩为一条 commit 进入 develop
+- develop 历史清晰，每个 commit 对应一个完整功能/修复
 
 ## 多人协作规则
 
@@ -149,7 +151,7 @@ feat(python-api): add UAV trajectory risk endpoint
 
 ### 冲突预防
 
-1. **Pull Before Push** — 每次开发前先 `git pull origin master`
+1. **Pull Before Push** — 每次开发前先 `git pull origin develop`
 2. **小步提交** — 避免一个 PR 改动过大，减少冲突概率
 3. **及时合并** — PR 不要长时间挂着，尽快 Review 并合并
 4. **模块隔离** — 各自负责的模块尽量不交叉修改
@@ -157,9 +159,9 @@ feat(python-api): add UAV trajectory risk endpoint
 ### 冲突解决
 
 ```bash
-# 拉取最新 master
+# 拉取最新 develop
 git fetch origin
-git rebase origin/master
+git rebase origin/develop
 
 # 解决冲突后
 git add .
