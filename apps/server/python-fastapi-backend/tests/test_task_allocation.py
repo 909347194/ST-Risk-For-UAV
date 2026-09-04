@@ -142,3 +142,39 @@ def test_de_crossover_preserves_fractional_genes():
     trial = solver._crossover(target, mutant, 0)
     assert trial.dtype == float
     assert not np.array_equal(trial, target)  # j_rand 保证在连续空间成立
+
+
+def test_de_evaluate_constrained_no_violation():
+    uav = _de_uav(0, 0, "uav-0", battery=1000.0, speed=10.0)  # 默认航程 = 1000/0.1 = 10000
+    task = _de_task(10, 0, "task-0")  # 无 time_limit
+    solver = DiscreteDESolver([uav], [task], seed=0)
+    fitness = solver.evaluate_constrained([0])
+    # path_cost=10, flight_time=1.0, 违反量=0（单机 var=0）
+    assert fitness == pytest.approx(10.0 + 0.5 * 1.0)  # 10.5
+
+
+def test_de_evaluate_range_violation():
+    uav = _de_uav(0, 0, "uav-0", battery=1000.0, speed=10.0)
+    task = _de_task(10, 0, "task-0")
+    solver = DiscreteDESolver([uav], [task], uav_max_ranges=[5.0], seed=0)
+    fitness = solver.evaluate_constrained([0])
+    # 违反量 = (10-5)/5 = 1.0
+    assert fitness == pytest.approx(10.0 + 0.5 + 500.0 * 1.0)  # 510.5
+
+
+def test_de_evaluate_deadline_violation():
+    uav = _de_uav(0, 0, "uav-0", battery=1000.0, speed=10.0)
+    task = _de_task(10, 0, "task-0", time_limit=0.5)
+    solver = DiscreteDESolver([uav], [task], seed=0)
+    fitness = solver.evaluate_constrained([0])
+    # flight_time=1.0 > 0.5 → 违反量 0.5
+    assert fitness == pytest.approx(10.0 + 0.5 + 500.0 * 0.5)  # 260.5
+
+
+def test_de_evaluate_basic_prefers_shorter_path():
+    uavs = [_de_uav(0, 0, "uav-0"), _de_uav(100, 0, "uav-1")]
+    tasks = [_de_task(5, 0, "task-0"), _de_task(105, 0, "task-1")]
+    solver = DiscreteDESolver(uavs, tasks, seed=0)
+    optimal = solver.evaluate([0, 1])   # 各自就近
+    crossed = solver.evaluate([1, 0])   # 交叉远飞
+    assert optimal < crossed

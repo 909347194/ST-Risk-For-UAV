@@ -214,3 +214,82 @@ class DiscreteDESolver:
     def _repair(self, individual: np.ndarray) -> np.ndarray:
         """取整 → 钳位"""
         return np.clip(np.round(individual).astype(int), 0, self.N_uav - 1)
+
+    # ———— 基础适应度 ————
+    def evaluate(self, individual: list[int]) -> float:
+        """基础适应度 = 总路径代价 + 超航程惩罚"""
+        uav_task_dict = self.decode(individual)
+        costs_dict = self.compute_path_costs(uav_task_dict)
+        total_cost = 0.0
+        for uav_id, seq in uav_task_dict.items():
+            if not seq:
+                continue
+            seg_cost = sum(costs_dict[uav_id])
+            if seg_cost > self.uav_max_ranges[uav_id]:
+                total_cost += seg_cost + 10000.0  # 超航程惩罚
+            else:
+                total_cost += seg_cost
+        return total_cost
+
+    # ———— 约束感知适应度 (Zhao et al. 2012, Eq. 23) ————
+    def evaluate_constrained(
+        self,
+        individual: list[int],
+        alpha: float = 1.0,
+        beta: float = 0.5,
+        gamma: float = 1.0,
+        penalty_weight: float = 500.0,
+    ) -> float:
+        """增强适应度 — 多约束惩罚
+
+        fitness = alpha·Σ(path_cost) + beta·max_flight_time
+                  + gamma·penalty_weight·Σ(constraint_violations)
+
+        约束:
+          1. 最大航程约束
+          2. 任务 deadline 约束 (Task.time_limit)
+          3. 负载均衡约束
+        """
+        uav_task_dict = self.decode(individual)
+        costs_dict = self.compute_path_costs(uav_task_dict)
+        total_path_cost = 0.0
+        max_flight_time = 0.0
+        violations = 0.0
+
+        for uav_id, seq in uav_task_dict.items():
+            if not seq:
+                continue
+            path_cost = sum(costs_dict[uav_id])
+            total_path_cost += path_cost
+
+            speed = self.uavs[uav_id].speed
+            flight_time = path_cost / speed if speed > 0 else 0.0
+            max_flight_time = max(max_flight_time, flight_time)
+
+            # 约束 1: 最大航程
+            max_range = self.uav_max_ranges[uav_id]
+            if path_cost > max_range:
+                violations += (path_cost - max_range) / max_range
+
+        # 约束 2: 任务 deadline（累计到达时刻）
+        for uav_id, seq in uav_task_dict.items():
+            speed = self.uavs[uav_id].speed
+            cumulative = 0.0
+            for k, tid in enumerate(seq):
+                if speed > 0:
+                    cumulative += costs_dict[uav_id][k] / speed
+                task = self.tasks[tid]
+                if task.time_limit is not None and cumulative > task.time_limit:
+                    violations += 0.5
+
+        # 约束 3: 负载均衡
+        task_counts = [len(seq) for seq in uav_task_dict.values()]
+        if task_counts:
+            violations += float(np.var(task_counts)) * 0.01
+
+        fitness = (
+            alpha * total_path_cost
+            + beta * max_flight_time
+            + gamma * penalty_weight * violations
+        )
+        return fitness
