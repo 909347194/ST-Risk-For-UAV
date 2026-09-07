@@ -125,6 +125,27 @@ pnpm run docker:build  # 重新构建并启动
 pnpm run docker:logs   # 查看日志
 ```
 
+## 环境配置
+
+```bash
+# 复制配置模板
+cp .env.example .env
+
+# 编辑 .env，填入实际的数据库连接等配置
+```
+
+关键配置项：
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `DATABASE_URL` | `postgresql://postgres:postgres@localhost:5432/st_risk` | Node 数据库连接 |
+| `UAV_DATABASE_URL` | `postgresql+asyncpg://postgres:postgres@localhost:5432/st_risk` | Python 数据库连接 |
+| `NODE_API_PORT` | `3000` | Node 后端端口 |
+| `PYTHON_API_PORT` | `8000` | Python 后端端口 |
+| `PYTHON_BACKEND_URL` | `http://localhost:8000` | Node 调用 Python 的地址 |
+
+完整配置见 [.env.example](.env.example)。
+
 ## 各端 README
 
 - [前端](apps/client/web-frontend/README.md)
