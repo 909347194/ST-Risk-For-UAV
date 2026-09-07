@@ -8,7 +8,7 @@ from src.domain.enums import TaskPriority
 from src.services.task_allocation import allocate
 from src.algorithms.task_allocation.differential_evolution import DiscreteDESolver, de_allocate
 from src.algorithms.task_allocation._common import derive_uav_ranges
-from src.algorithms.task_allocation.clarke_wright import ClarkeWrightSolver
+from src.algorithms.task_allocation.clarke_wright import ClarkeWrightSolver, clarke_wright_allocate
 
 
 def _make_uavs(n: int) -> list[UAV]:
@@ -349,3 +349,34 @@ def test_cw_to_individual():
     assert ind[0] == 0  # task-0 距 uav-0 最近
     assert ind[1] == 1  # task-1 距 uav-1 最近
     assert ind[2] == 0  # task-2 与两机等距，取 argmin 第一个
+
+
+def test_cw_order_preserved():
+    uavs = [_de_uav(0, 0, "uav-0")]
+    tasks = [_de_task(10, 0, "task-0"), _de_task(20, 0, "task-1")]
+    allocations, unassigned = clarke_wright_allocate(uavs, tasks)
+    assert [a.task_id for a in allocations] == ["task-0", "task-1"]  # CW 访问顺序保留
+    assert unassigned == []
+
+
+def test_cw_empty_inputs():
+    uavs = [_de_uav(0, 0, "uav-0")]
+    task = _de_task(10, 0, "task-0")
+    allocations, unassigned = clarke_wright_allocate([], [task])
+    assert allocations == [] and unassigned == ["task-0"]
+    allocations, unassigned = clarke_wright_allocate(uavs, [])
+    assert allocations == [] and unassigned == []
+
+
+def test_cw_via_service():
+    uavs = _make_uavs(2)
+    tasks = _make_tasks(3)
+    allocations, unassigned = allocate(uavs, tasks, algorithm="cw")
+    assert len(allocations) == 3
+    assert unassigned == []
+
+
+def test_cw_listed_in_algorithms():
+    from src.services import task_allocation as service
+    names = [a["name"] for a in service.list_available_algorithms()]
+    assert "cw" in names

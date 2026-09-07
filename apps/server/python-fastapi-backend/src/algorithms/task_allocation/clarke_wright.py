@@ -9,7 +9,7 @@ to a Number of Delivery Points. Operations Research, 1964.
 
 import numpy as np
 
-from src.domain.models import UAV, Task
+from src.domain.models import UAV, Task, TaskAllocation
 from src.algorithms.task_allocation._common import (
     build_cost_matrix,
     derive_uav_ranges,
@@ -117,3 +117,43 @@ class ClarkeWrightSolver:
                 for tid in route:
                     individual[tid] = uav_idx
         return individual
+
+
+def clarke_wright_allocate(
+    uavs: list[UAV],
+    tasks: list[Task],
+    uav_max_ranges: list[float] | None = None,
+    energy_per_meter: float = 0.1,
+    **kwargs,
+) -> tuple[list[TaskAllocation], list[str]]:
+    """Clarke-Wright 任务分配 — 与 hungarian/auction/de 同签名
+
+    返回 (allocations, unassigned)。allocations 按 UAV 下标、路线创建
+    顺序拼接输出，保留 CW 的访问顺序；CW 覆盖全部任务，
+    unassigned 恒为空。
+    """
+    if not uavs or not tasks:
+        return [], [t.id for t in tasks]
+
+    solver = ClarkeWrightSolver(
+        uavs=uavs,
+        tasks=tasks,
+        uav_max_ranges=uav_max_ranges,
+        energy_per_meter=energy_per_meter,
+    )
+    routes = solver.solve()
+
+    allocations: list[TaskAllocation] = []
+    for uav_idx in range(len(uavs)):
+        uav = uavs[uav_idx]
+        for route in routes[uav_idx]:
+            seg_costs = solver.route_segment_costs(uav_idx, route)
+            for k, tid in enumerate(route):
+                allocations.append(
+                    TaskAllocation(
+                        uav_id=uav.id,
+                        task_id=tasks[tid].id,
+                        estimated_cost=seg_costs[k],
+                    )
+                )
+    return allocations, []

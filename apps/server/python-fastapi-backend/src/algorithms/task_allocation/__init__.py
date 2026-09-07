@@ -4,6 +4,7 @@ from src.algorithms.registry import register, AlgorithmCategory
 from src.algorithms.task_allocation.hungarian import hungarian_allocate
 from src.algorithms.task_allocation.auction import auction_allocate
 from src.algorithms.task_allocation.differential_evolution import de_allocate
+from src.algorithms.task_allocation.clarke_wright import clarke_wright_allocate
 
 
 def _register() -> None:
@@ -46,6 +47,19 @@ def _register() -> None:
                 "uav_max_ranges": {"type": "array", "default": None, "description": "每机最大航程 (m)，缺省按电池推算"},
                 "energy_per_meter": {"type": "number", "default": 0.1, "description": "能耗率 (Wh/m)"},
                 "seed": {"type": "integer", "default": None, "description": "随机种子"},
+            },
+        },
+    )
+    register(
+        AlgorithmCategory.TASK_ALLOCATION,
+        "cw",
+        clarke_wright_allocate,
+        {
+            "name": "cw",
+            "description": "Clarke-Wright 节约算法 — 构造启发式，多机多任务初始解 / DE 热启动",
+            "params_schema": {
+                "uav_max_ranges": {"type": "array", "default": None, "description": "每机最大航程 (m)，缺省按电池推算"},
+                "energy_per_meter": {"type": "number", "default": 0.1, "description": "能耗率 (Wh/m)"},
             },
         },
     )
