@@ -8,6 +8,7 @@ from src.domain.enums import TaskPriority
 from src.services.task_allocation import allocate
 from src.algorithms.task_allocation.differential_evolution import DiscreteDESolver, de_allocate
 from src.algorithms.task_allocation._common import derive_uav_ranges
+from src.algorithms.task_allocation.clarke_wright import ClarkeWrightSolver
 
 
 def _make_uavs(n: int) -> list[UAV]:
@@ -299,3 +300,52 @@ def test_common_derive_uav_ranges():
         derive_uav_ranges(uavs, uav_max_ranges=[1.0, 2.0])
     with pytest.raises(ValueError):
         derive_uav_ranges(uavs, uav_max_ranges=[0.0])
+
+
+# ── Clarke-Wright (CW) ──
+
+def test_cw_basic():
+    uavs = [_de_uav(0, 0, "uav-0"), _de_uav(100, 0, "uav-1")]
+    tasks = [_de_task(10, 0, "task-0"), _de_task(90, 0, "task-1"), _de_task(50, 0, "task-2")]
+    solver = ClarkeWrightSolver(uavs, tasks)
+    routes = solver.solve()
+    assigned = sorted(t for route_list in routes.values() for route in route_list for t in route)
+    assert assigned == [0, 1, 2]  # 全部分配且无重复
+
+
+def test_cw_savings_merge():
+    uavs = [_de_uav(0, 0, "uav-0")]
+    tasks = [_de_task(10, 0, "task-0"), _de_task(20, 0, "task-1")]
+    # 共线同向: 节约值 10+20-10=20 > 0，合并为 [0, 1]
+    solver = ClarkeWrightSolver(uavs, tasks)
+    routes = solver.solve()
+    assert routes[0] == [[0, 1]]
+
+
+def test_cw_payload_capacity():
+    uav = UAV(id="uav-0", position=Position(x=0, y=0, z=0), speed=10.0, max_payload=5.0, battery=1000.0)
+    t0 = Task(id="task-0", position=Position(x=10, y=0, z=0), payload_weight=3.0)
+    t1 = Task(id="task-1", position=Position(x=20, y=0, z=0), payload_weight=3.0)
+    solver = ClarkeWrightSolver([uav], [t0, t1])
+    routes = solver.solve()
+    assert len(routes[0]) == 2  # 载荷 3+3 > 5 阻止合并，保持两条独立路线
+
+
+def test_cw_range_capacity():
+    uav = UAV(id="uav-0", position=Position(x=0, y=0, z=0), speed=10.0, max_payload=5.0, battery=1000.0)
+    t0 = Task(id="task-0", position=Position(x=100, y=0, z=0), payload_weight=1.0)
+    t1 = Task(id="task-1", position=Position(x=200, y=0, z=0), payload_weight=1.0)
+    solver = ClarkeWrightSolver([uav], [t0, t1], uav_max_ranges=[150.0])
+    routes = solver.solve()
+    assert len(routes[0]) == 2  # 合并后航程 200 > 150 阻止合并
+
+
+def test_cw_to_individual():
+    uavs = [_de_uav(0, 0, "uav-0"), _de_uav(100, 0, "uav-1")]
+    tasks = [_de_task(10, 0, "task-0"), _de_task(90, 0, "task-1"), _de_task(50, 0, "task-2")]
+    solver = ClarkeWrightSolver(uavs, tasks)
+    ind = solver.to_individual()
+    assert len(ind) == 3
+    assert ind[0] == 0  # task-0 距 uav-0 最近
+    assert ind[1] == 1  # task-1 距 uav-1 最近
+    assert ind[2] == 0  # task-2 与两机等距，取 argmin 第一个
