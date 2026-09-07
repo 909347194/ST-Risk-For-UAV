@@ -45,6 +45,7 @@ class DiscreteDESolver:
         gamma: float = 1.0,
         penalty_weight: float = 500.0,
         seed: int | None = None,
+        warm_start: list[int] | None = None,
     ):
         self.uavs = uavs
         self.tasks = tasks
@@ -67,6 +68,16 @@ class DiscreteDESolver:
             raise ValueError(f"pop_size 必须 >= 4（变异需 3 个互异候选个体），当前: {self.pop_size}")
         if not 0.0 < self.heuristic_ratio <= 1.0:
             raise ValueError(f"heuristic_ratio 必须在 (0, 1] 区间，当前: {self.heuristic_ratio}")
+
+        # warm_start 校验: 长度与值域
+        if warm_start is not None:
+            if len(warm_start) != self.N_task:
+                raise ValueError(
+                    f"warm_start 长度必须等于任务数 ({self.N_task})，当前: {len(warm_start)}"
+                )
+            if any(not 0 <= g < self.N_uav for g in warm_start):
+                raise ValueError(f"warm_start 基因值必须在 [0, {self.N_uav}) 区间")
+        self.warm_start = warm_start
 
         # 最大航程: 显式参数优先, 否则按电池/能耗率推算（校验在公共函数内）
         self.uav_max_ranges = derive_uav_ranges(uavs, uav_max_ranges, energy_per_meter)
@@ -133,6 +144,9 @@ class DiscreteDESolver:
 
     # ———— 启发式初始化 ————
     def _init_population(self) -> np.ndarray:
+        if self.warm_start is not None:
+            return self._init_population_with_warm_start()
+
         n_heuristic = max(1, int(self.pop_size * self.heuristic_ratio))
         n_random = self.pop_size - n_heuristic
         pop: list[np.ndarray] = []
@@ -152,6 +166,22 @@ class DiscreteDESolver:
         for _ in range(n_random):
             pop.append(self.rng.integers(0, self.N_uav, size=self.N_task))
 
+        return np.array(pop)
+
+    # ———— 热启动初始化 ————
+    def _init_population_with_warm_start(self) -> np.ndarray:
+        """种群[0] = warm_start；其余 heuristic_ratio 比例为扰动个体，剩余随机"""
+        pop: list[np.ndarray] = [np.array(self.warm_start, dtype=int)]
+        n_perturbed = max(0, int((self.pop_size - 1) * self.heuristic_ratio))
+        n_random = self.pop_size - 1 - n_perturbed
+        base = np.array(self.warm_start, dtype=int)
+        for _ in range(n_perturbed):
+            ind = base.copy()
+            flip_mask = self.rng.random(self.N_task) < 0.1
+            ind[flip_mask] = self.rng.integers(0, self.N_uav, size=int(flip_mask.sum()))
+            pop.append(ind)
+        for _ in range(n_random):
+            pop.append(self.rng.integers(0, self.N_uav, size=self.N_task))
         return np.array(pop)
 
     # ———— 精英引导变异 ————
@@ -361,6 +391,7 @@ def de_allocate(
     energy_per_meter: float = 0.1,
     penalty_weight: float = 500.0,
     seed: int | None = None,
+    warm_start: list[int] | None = None,
     **kwargs,
 ) -> tuple[list[TaskAllocation], list[str]]:
     """差分进化任务分配 — 与 hungarian/auction 同签名
@@ -385,6 +416,7 @@ def de_allocate(
         energy_per_meter=energy_per_meter,
         penalty_weight=penalty_weight,
         seed=seed,
+        warm_start=warm_start,
     )
     allocation, _stats = solver.solve()
 

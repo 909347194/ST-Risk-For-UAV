@@ -47,6 +47,7 @@ def _register() -> None:
                 "uav_max_ranges": {"type": "array", "default": None, "description": "每机最大航程 (m)，缺省按电池推算"},
                 "energy_per_meter": {"type": "number", "default": 0.1, "description": "能耗率 (Wh/m)"},
                 "seed": {"type": "integer", "default": None, "description": "随机种子"},
+                "warm_start": {"type": "array", "default": None, "description": "DE 热启动个体（整数编码，长度 = 任务数）"},
             },
         },
     )

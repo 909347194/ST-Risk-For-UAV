@@ -380,3 +380,43 @@ def test_cw_listed_in_algorithms():
     from src.services import task_allocation as service
     names = [a["name"] for a in service.list_available_algorithms()]
     assert "cw" in names
+
+
+def test_de_warm_start_seeds_population():
+    uavs = [_de_uav(0, 0, "uav-0"), _de_uav(100, 0, "uav-1")]
+    tasks = [_de_task(10, 0, "task-0"), _de_task(90, 0, "task-1"), _de_task(50, 0, "task-2")]
+    ws = [0, 1, 1]
+    solver = DiscreteDESolver(uavs, tasks, warm_start=ws, seed=0)
+    pop = solver._init_population()
+    assert pop[0].tolist() == ws
+    assert pop.shape == (solver.pop_size, 3)
+
+
+def test_de_warm_start_best_not_worse():
+    uavs = [_de_uav(0, 0, "uav-0"), _de_uav(100, 0, "uav-1")]
+    tasks = [_de_task(10, 0, "task-0"), _de_task(90, 0, "task-1"), _de_task(50, 0, "task-2")]
+    ws = [0, 1, 1]
+    solver = DiscreteDESolver(uavs, tasks, warm_start=ws, pop_size=20, generations=30, seed=0)
+    _, stats = solver.solve()
+    ws_fitness = solver.evaluate_constrained(ws)
+    assert stats["best_cost"] <= ws_fitness + 1e-9  # 精英保留: 历史最优 ≤ 初始个体适应度
+
+
+def test_de_warm_start_invalid():
+    uavs = [_de_uav(0, 0, "uav-0"), _de_uav(100, 0, "uav-1")]
+    tasks = [_de_task(10, 0, "task-0"), _de_task(90, 0, "task-1"), _de_task(50, 0, "task-2")]
+    with pytest.raises(ValueError):
+        DiscreteDESolver(uavs, tasks, warm_start=[0, 1])  # 长度错
+    with pytest.raises(ValueError):
+        DiscreteDESolver(uavs, tasks, warm_start=[0, 5, 1])  # 值域错
+
+
+def test_de_allocate_accepts_warm_start():
+    uavs = _make_uavs(2)
+    tasks = _make_tasks(3)
+    ws = [0, 1, 0]
+    allocations, unassigned = de_allocate(
+        uavs, tasks, warm_start=ws, pop_size=10, generations=10, seed=0
+    )
+    assert len(allocations) == 3
+    assert unassigned == []
