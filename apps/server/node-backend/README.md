@@ -20,9 +20,13 @@ pnpm install
 
 # 启动开发服务
 pnpm --filter @st-risk/node-backend dev
+# 或在根目录
+pnpm run dev:node
 
 # 构建
 pnpm --filter @st-risk/node-backend build
+# 或在根目录
+pnpm run build:node
 
 # 运行测试
 pnpm --filter @st-risk/node-backend test

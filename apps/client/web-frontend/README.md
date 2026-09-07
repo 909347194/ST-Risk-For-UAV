@@ -20,9 +20,13 @@ pnpm install
 
 # 启动开发服务
 pnpm --filter @st-risk/web-frontend dev
+# 或在根目录
+pnpm run dev:fe
 
 # 构建
 pnpm --filter @st-risk/web-frontend build
+# 或在根目录
+pnpm run build:fe
 ```
 
 开发服务默认运行在 http://localhost:5173。
@@ -36,8 +40,8 @@ graph LR
     FE[前端 :5173] -->|/api/v1/*| NODE[Node :3000]
     FE -->|/api/python/*| PY[Python :8000]
 
-    FE -.-> SHARED[@st-risk/shared-ts]
-    NODE -.-> SHARED
+    FE -.->|共享类型| SHARED[shared-ts]
+    NODE -.->|共享类型| SHARED
 ```
 
 | 路径前缀 | 目标 | 用途 |

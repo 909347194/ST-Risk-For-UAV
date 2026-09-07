@@ -29,9 +29,15 @@ alembic upgrade head
 
 # 启动服务
 uv run uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
+# 或通过 pyproject scripts
+uv run dev
+# 或在 monorepo 根目录
+pnpm run dev:py
 
 # 运行测试
 uv run pytest tests/ -v
+# 或
+uv run test
 ```
 
 服务启动后访问 http://localhost:8000/docs 查看 Swagger 文档。
