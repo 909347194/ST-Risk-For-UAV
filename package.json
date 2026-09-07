@@ -10,15 +10,15 @@
   "scripts": {
     "---------------------- 全部启动 ----------------------": "",
 
-    "dev": "pnpm run dev:fe & pnpm run dev:node & pnpm run dev:py",
-    "dev:fe": "pnpm --filter @st-risk/web-frontend dev",
+    "dev": "pnpm run dev:web & pnpm run dev:node & pnpm run dev:py",
+    "dev:web": "pnpm --filter @st-risk/web-frontend dev",
     "dev:node": "pnpm --filter @st-risk/node-backend dev",
     "dev:py": "cd apps/server/python-fastapi-backend && uv run uvicorn src.main:app --reload --host 0.0.0.0 --port 8000",
 
     "---------------------- 构建 ----------------------": "",
 
-    "build": "pnpm run build:fe && pnpm run build:node",
-    "build:fe": "pnpm --filter @st-risk/web-frontend build",
+    "build": "pnpm run build:web && pnpm run build:node",
+    "build:web": "pnpm --filter @st-risk/web-frontend build",
     "build:node": "pnpm --filter @st-risk/node-backend build",
 
     "---------------------- 启动生产版本 ----------------------": "",
@@ -29,13 +29,13 @@
 
     "---------------------- Lint & 测试 ----------------------": "",
 
-    "lint": "pnpm run lint:fe && pnpm run lint:node",
-    "lint:fe": "pnpm --filter @st-risk/web-frontend lint",
+    "lint": "pnpm run lint:web && pnpm run lint:node",
+    "lint:web": "pnpm --filter @st-risk/web-frontend lint",
     "lint:node": "pnpm --filter @st-risk/node-backend lint",
     "lint:py": "cd apps/server/python-fastapi-backend && uv run ruff check src/",
 
-    "test": "pnpm run test:fe && pnpm run test:node",
-    "test:fe": "pnpm --filter @st-risk/web-frontend test",
+    "test": "pnpm run test:web && pnpm run test:node",
+    "test:web": "pnpm --filter @st-risk/web-frontend test",
     "test:node": "pnpm --filter @st-risk/node-backend test",
     "test:py": "cd apps/server/python-fastapi-backend && uv run pytest tests/ -v",
 
@@ -55,8 +55,8 @@
 
     "---------------------- 工具 ----------------------": "",
 
-    "clean": "pnpm run clean:fe && pnpm run clean:node && pnpm run clean:py",
-    "clean:fe": "rm -rf apps/client/web-frontend/dist apps/client/web-frontend/node_modules/.vite",
+    "clean": "pnpm run clean:web && pnpm run clean:node && pnpm run clean:py",
+    "clean:web": "rm -rf apps/client/web-frontend/dist apps/client/web-frontend/node_modules/.vite",
     "clean:node": "rm -rf apps/server/node-backend/dist",
     "clean:py": "find apps/server/python-fastapi-backend -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null; true",
     "install:all": "pnpm install && cd apps/server/python-fastapi-backend && uv sync",

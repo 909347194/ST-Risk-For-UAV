@@ -88,7 +88,7 @@ pnpm run dev
 #### 单独启动某个服务
 
 ```bash
-pnpm run dev:fe      # 前端（:5173）
+pnpm run dev:web     # 前端（:5173）
 pnpm run dev:node    # Node 后端（:3000）
 pnpm run dev:py      # Python 后端（:8000）
 ```
@@ -97,7 +97,7 @@ pnpm run dev:py      # Python 后端（:8000）
 
 ```bash
 pnpm run build       # 构建前端 + Node
-pnpm run build:fe    # 仅构建前端
+pnpm run build:web   # 仅构建前端
 pnpm run build:node  # 仅构建 Node
 ```
 
