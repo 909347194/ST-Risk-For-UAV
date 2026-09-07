@@ -1,13 +1,68 @@
 {
-  "name": "ST-Risk-For-UAV",
+  "name": "st-risk-for-uav",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+  "private": true,
+  "description": "无人机时空风险评估与任务分配系统 — Monorepo",
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=20.0.0"
   },
-  "keywords": [],
+  "scripts": {
+    "---------------------- 全部启动 ----------------------": "",
+
+    "dev": "pnpm run dev:fe & pnpm run dev:node & pnpm run dev:py",
+    "dev:fe": "pnpm --filter @st-risk/web-frontend dev",
+    "dev:node": "pnpm --filter @st-risk/node-backend dev",
+    "dev:py": "cd apps/server/python-fastapi-backend && uv run uvicorn src.main:app --reload --host 0.0.0.0 --port 8000",
+
+    "---------------------- 构建 ----------------------": "",
+
+    "build": "pnpm run build:fe && pnpm run build:node",
+    "build:fe": "pnpm --filter @st-risk/web-frontend build",
+    "build:node": "pnpm --filter @st-risk/node-backend build",
+
+    "---------------------- 启动生产版本 ----------------------": "",
+
+    "start": "pnpm run start:node",
+    "start:node": "pnpm --filter @st-risk/node-backend start",
+    "start:py": "cd apps/server/python-fastapi-backend && uv run uvicorn src.main:app --host 0.0.0.0 --port 8000",
+
+    "---------------------- Lint & 测试 ----------------------": "",
+
+    "lint": "pnpm run lint:fe && pnpm run lint:node",
+    "lint:fe": "pnpm --filter @st-risk/web-frontend lint",
+    "lint:node": "pnpm --filter @st-risk/node-backend lint",
+    "lint:py": "cd apps/server/python-fastapi-backend && uv run ruff check src/",
+
+    "test": "pnpm run test:fe && pnpm run test:node",
+    "test:fe": "pnpm --filter @st-risk/web-frontend test",
+    "test:node": "pnpm --filter @st-risk/node-backend test",
+    "test:py": "cd apps/server/python-fastapi-backend && uv run pytest tests/ -v",
+
+    "---------------------- 数据库 ----------------------": "",
+
+    "db:generate": "pnpm --filter @st-risk/node-backend db:generate",
+    "db:migrate": "pnpm --filter @st-risk/node-backend db:migrate",
+    "db:py-migrate": "cd apps/server/python-fastapi-backend && uv run alembic upgrade head",
+    "db:py-revision": "cd apps/server/python-fastapi-backend && uv run alembic revision --autogenerate -m",
+
+    "---------------------- Docker ----------------------": "",
+
+    "docker:up": "cd infra/docker && docker compose up -d",
+    "docker:down": "cd infra/docker && docker compose down",
+    "docker:build": "cd infra/docker && docker compose up -d --build",
+    "docker:logs": "cd infra/docker && docker compose logs -f",
+
+    "---------------------- 工具 ----------------------": "",
+
+    "clean": "pnpm run clean:fe && pnpm run clean:node && pnpm run clean:py",
+    "clean:fe": "rm -rf apps/client/web-frontend/dist apps/client/web-frontend/node_modules/.vite",
+    "clean:node": "rm -rf apps/server/node-backend/dist",
+    "clean:py": "find apps/server/python-fastapi-backend -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null; true",
+    "install:all": "pnpm install && cd apps/server/python-fastapi-backend && uv sync",
+    "typecheck": "pnpm --filter @st-risk/web-frontend exec vue-tsc -b --noEmit"
+  },
+  "keywords": ["uav", "risk-assessment", "task-allocation", "path-planning"],
   "author": "",
-  "license": "ISC",
-  "packageManager": "pnpm@10.33.0"
+  "license": "ISC"
 }
