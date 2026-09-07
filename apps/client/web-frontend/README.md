@@ -19,10 +19,22 @@
 pnpm install
 
 # 启动开发服务
-pnpm --filter @st-risk/web-frontend dev
+pnpm run dev:web
 
 # 构建
-pnpm --filter @st-risk/web-frontend build
+pnpm run build:web
+
+# Lint
+pnpm run lint:web
+
+# 单元测试
+pnpm run test:web
+
+# 类型检查
+pnpm run typecheck
+
+# 清理产物
+pnpm run clean:web
 ```
 
 开发服务默认运行在 http://localhost:5173。
@@ -36,14 +48,14 @@ graph LR
     FE[前端 :5173] -->|/api/v1/*| NODE[Node :3000]
     FE -->|/api/python/*| PY[Python :8000]
 
-    FE -.-> SHARED[@st-risk/shared-ts]
-    NODE -.-> SHARED
+    FE -.->|共享类型| SHARED[shared-ts]
+    NODE -.->|共享类型| SHARED
 ```
 
-| 路径前缀 | 目标 | 用途 |
+| 路径前缀 | 目标 | 说明 |
 |----------|------|------|
-| `/api/v1/*` | Node NestJS | Agent 业务逻辑、资源管理 |
-| `/api/python/*` | Python FastAPI | 算法计算 |
+| `/api/v1/*` | Node NestJS :3000 | Agent 业务逻辑、资源管理 |
+| `/api/python/*` | Python FastAPI :8000 | 算法计算（Vite 重写为 `/api/v1`） |
 
 ### 模块化结构
 
@@ -82,52 +94,102 @@ graph TB
 
 ```
 src/
-├── main.ts                          # 应用入口
-├── App.vue                          # 根组件
+├── main.ts                    # 应用入口
+├── App.vue                    # 根组件
 │
-├── modules/                         # 业务模块（内聚）
-│   ├── home/                        #   首页
+├── modules/                   # 业务模块（内聚）
+│   ├── home/                  #   首页
 │   │   ├── pages/HomePage.vue
 │   │   └── index.ts
-│   ├── uav/                         #   ① 无人机资源管理
-│   │   ├── pages/
-│   │   ├── components/              #     模块内组件
-│   │   ├── composables/             #     模块内组合式函数
-│   │   ├── stores/                  #     模块内状态
+│   ├── uav/                   #   ① 无人机资源管理
+│   │   ├── pages/UavListPage.vue
 │   │   └── index.ts
-│   ├── agent/                       #   Agent 任务编排
-│   │   ├── pages/
-│   │   ├── components/
-│   │   ├── composables/
-│   │   ├── stores/
+│   ├── agent/                 #   Agent 任务编排
+│   │   ├── pages/AgentPage.vue
 │   │   └── index.ts
-│   ├── monitoring/                  #   飞行监控
-│   │   └── ...
-│   └── planning/                    #   航线规划
-│       └── ...
+│   ├── monitoring/            #   飞行监控
+│   │   ├── pages/MonitoringPage.vue
+│   │   └── index.ts
+│   └── planning/              #   航线规划
+│       ├── pages/PlanningPage.vue
+│       └── index.ts
 │
-├── shared/                          # 跨模块共享（严格准入）
-│   ├── components/                  #   共享组件（需被 2+ 模块引用）
+├── shared/                    # 跨模块共享
+│   ├── components/
 │   │   └── MainLayout.vue
-│   ├── composables/                 #   共享组合式函数
-│   ├── stores/                      #   全局 Pinia stores
-│   │   └── uav.ts
+│   ├── composables/index.ts
+│   ├── stores/
+│   │   ├── uav.ts
+│   │   └── index.ts
 │   └── index.ts
 │
-├── api/                             # API 客户端（按后端分离）
-│   ├── http.ts                      #   Axios 实例工厂
-│   ├── python/                      #   → Python FastAPI
-│   └── node/                        #   → Node NestJS
+├── api/                       # API 客户端（按后端分离）
+│   ├── http.ts                #   Axios 实例工厂
+│   ├── python/index.ts        #   → Python FastAPI
+│   ├── node/index.ts          #   → Node NestJS
+│   └── index.ts               #   统一导出
 │
-└── router/                          # 路由
+└── router/
     └── index.ts
+```
+
+### 路由表
+
+| 路径 | 页面组件 | 布局 |
+|------|----------|------|
+| `/` | `HomePage` | MainLayout |
+| `/uavs` | `UavListPage` | — |
+| `/agent` | `AgentPage` | — |
+| `/monitoring` | `MonitoringPage` | — |
+| `/planning` | `PlanningPage` | — |
+
+### API 方法
+
+#### nodeApi（→ Node NestJS）
+
+| 方法 | 说明 |
+|------|------|
+| `executeAgentTask` | 执行 Agent 任务 |
+| `createUav` | 创建无人机 |
+| `listUavs` | 获取无人机列表 |
+| `getUav` | 获取单个无人机详情 |
+| `health` | 健康检查 |
+
+#### pythonApi（→ Python FastAPI）
+
+| 方法 | 说明 |
+|------|------|
+| `planPath` | 航线规划 |
+| `allocateTasks` | 任务分配 |
+| `assessRisk` | 风险评估 |
+| `evaluateAdaptability` | 适应性评估 |
+| `listPathAlgorithms` | 获取可用路径算法列表 |
+| `listAllocationAlgorithms` | 获取可用分配算法列表 |
+
+### Vite 代理配置
+
+```typescript
+// vite.config.ts
+server: {
+  proxy: {
+    '/api/v1': {
+      target: 'http://localhost:3000',   // Node NestJS
+      changeOrigin: true,
+    },
+    '/api/python': {
+      target: 'http://localhost:8000',   // Python FastAPI
+      changeOrigin: true,
+      rewrite: (path) => path.replace(/^\/api\/python/, '/api/v1'),
+    },
+  },
+}
 ```
 
 ### 各层职责
 
 | 层 | 目录 | 职责 |
 |---|------|------|
-| 业务模块 | `modules/` | 功能内聚：pages + components + composables + stores |
+| 业务模块 | `modules/` | 功能内聚：pages + index.ts |
 | 共享层 | `shared/` | 跨模块共享：组件、composables、全局 stores |
 | API 层 | `api/` | HTTP 客户端，按后端分离 |
 | 路由 | `router/` | Vue Router 配置 |
@@ -205,9 +267,6 @@ flowchart TD
 ```
 src/modules/new-feature/
 ├── pages/              # 页面组件
-├── components/         # 模块内组件（不外共享）
-├── composables/        # 模块内逻辑
-├── stores/             # 模块内状态
 └── index.ts            # 统一导出
 ```
 
@@ -243,7 +302,11 @@ export function useFeature() {
 { path: 'new-feature', component: () => import('@/modules/new-feature/pages/ListPage.vue') }
 ```
 
-### Step 5 — 模块导出
+### Step 5 — 如需全局状态 → shared/stores
+
+仅当状态需跨模块共享时，放入 `shared/stores/`。模块内部状态直接在模块目录内管理。
+
+模块 index.ts 统一导出：
 
 ```typescript
 // modules/new-feature/index.ts

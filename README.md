@@ -78,19 +78,73 @@ docker compose up -d
 ### 本地开发
 
 ```bash
-# 安装依赖
-pnpm install
+# 安装所有依赖（pnpm + Python uv）
+pnpm run install:all
 
-# 启动 Python 后端
-cd apps/server/python-fastapi-backend
-uv sync && uv run uvicorn src.main:app --reload
-
-# 启动 Node 后端
-pnpm --filter @st-risk/node-backend dev
-
-# 启动前端
-pnpm --filter @st-risk/web-frontend dev
+# 一键启动全部服务
+pnpm run dev
 ```
+
+#### 单独启动某个服务
+
+```bash
+pnpm run dev:web     # 前端（:5173）
+pnpm run dev:node    # Node 后端（:3000）
+pnpm run dev:py      # Python 后端（:8000）
+```
+
+#### 构建
+
+```bash
+pnpm run build       # 构建前端 + Node
+pnpm run build:web   # 仅构建前端
+pnpm run build:node  # 仅构建 Node
+```
+
+#### Lint & 测试
+
+```bash
+pnpm run lint        # 全部 lint
+pnpm run test        # 全部测试
+pnpm run test:py     # Python 测试
+```
+
+#### 数据库
+
+```bash
+pnpm run db:migrate       # Node Drizzle 迁移
+pnpm run db:py-migrate    # Python Alembic 迁移
+```
+
+#### Docker
+
+```bash
+pnpm run docker:up     # 启动
+pnpm run docker:down   # 停止
+pnpm run docker:build  # 重新构建并启动
+pnpm run docker:logs   # 查看日志
+```
+
+## 环境配置
+
+```bash
+# 复制配置模板
+cp .env.example .env
+
+# 编辑 .env，填入实际的数据库连接等配置
+```
+
+关键配置项：
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `DATABASE_URL` | `postgresql://postgres:postgres@localhost:5432/st_risk` | Node 数据库连接 |
+| `UAV_DATABASE_URL` | `postgresql+asyncpg://postgres:postgres@localhost:5432/st_risk` | Python 数据库连接 |
+| `NODE_API_PORT` | `3000` | Node 后端端口 |
+| `PYTHON_API_PORT` | `8000` | Python 后端端口 |
+| `PYTHON_BACKEND_URL` | `http://localhost:8000` | Node 调用 Python 的地址 |
+
+完整配置见 [.env.example](.env.example)。
 
 ## 各端 README
 
