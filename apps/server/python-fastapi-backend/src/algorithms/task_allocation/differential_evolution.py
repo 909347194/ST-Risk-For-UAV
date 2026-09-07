@@ -11,9 +11,10 @@ import time
 import numpy as np
 
 from src.domain.models import UAV, Task, TaskAllocation
-from src.utils.utils import distance
-
-PRIORITY_WEIGHT = {"low": 1.0, "medium": 1.5, "high": 2.0, "urgent": 3.0}
+from src.algorithms.task_allocation._common import (
+    build_cost_matrix,
+    derive_uav_ranges,
+)
 
 
 class DiscreteDESolver:
@@ -66,39 +67,15 @@ class DiscreteDESolver:
             raise ValueError(f"pop_size 必须 >= 4（变异需 3 个互异候选个体），当前: {self.pop_size}")
         if not 0.0 < self.heuristic_ratio <= 1.0:
             raise ValueError(f"heuristic_ratio 必须在 (0, 1] 区间，当前: {self.heuristic_ratio}")
-        if uav_max_ranges is not None:
-            if len(uav_max_ranges) != self.N_uav:
-                raise ValueError(
-                    f"uav_max_ranges 长度必须等于 UAV 数 ({self.N_uav})，当前: {len(uav_max_ranges)}"
-                )
-            if any(r <= 0 for r in uav_max_ranges):
-                raise ValueError(f"uav_max_ranges 各项必须 > 0，当前: {uav_max_ranges}")
 
-        # 最大航程: 显式参数优先, 否则按电池/能耗率推算
-        if uav_max_ranges is not None:
-            self.uav_max_ranges = list(uav_max_ranges)
-        else:
-            self.uav_max_ranges = [
-                u.battery / energy_per_meter if energy_per_meter > 0 else float("inf")
-                for u in uavs
-            ]
+        # 最大航程: 显式参数优先, 否则按电池/能耗率推算（校验在公共函数内）
+        self.uav_max_ranges = derive_uav_ranges(uavs, uav_max_ranges, energy_per_meter)
 
         self._build_cost_matrix()
 
     # ———— 代价矩阵 ————
     def _build_cost_matrix(self) -> None:
-        points = [u.position for u in self.uavs] + [t.position for t in self.tasks]
-        n = len(points)
-        self.cost_matrix = np.zeros((n, n))
-        for i in range(n):
-            for j in range(n):
-                if i == j:
-                    continue
-                d = distance(points[i], points[j])
-                if j >= self.N_uav:
-                    task = self.tasks[j - self.N_uav]
-                    d *= PRIORITY_WEIGHT.get(task.priority.value, 1.0)
-                self.cost_matrix[i, j] = d
+        self.cost_matrix = build_cost_matrix(self.uavs, self.tasks)
 
     # ———— 解码 ————
     def decode(self, individual: list[int] | np.ndarray) -> dict[int, list[int]]:

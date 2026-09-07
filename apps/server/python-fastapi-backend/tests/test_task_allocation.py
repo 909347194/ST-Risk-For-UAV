@@ -7,6 +7,7 @@ from src.domain.models import UAV, Task, Position
 from src.domain.enums import TaskPriority
 from src.services.task_allocation import allocate
 from src.algorithms.task_allocation.differential_evolution import DiscreteDESolver, de_allocate
+from src.algorithms.task_allocation._common import derive_uav_ranges
 
 
 def _make_uavs(n: int) -> list[UAV]:
@@ -287,3 +288,14 @@ def test_de_invalid_params_raise():
         DiscreteDESolver(uavs, tasks, uav_max_ranges=[0.0, 100.0])
     with pytest.raises(ValueError):
         DiscreteDESolver(uavs, tasks, heuristic_ratio=1.5)
+
+
+def test_common_derive_uav_ranges():
+    uavs = [_de_uav(0, 0, "uav-0", battery=1000.0)]
+    assert derive_uav_ranges(uavs) == pytest.approx([10000.0])
+    assert derive_uav_ranges(uavs, uav_max_ranges=[5.0]) == pytest.approx([5.0])
+    assert derive_uav_ranges(uavs, energy_per_meter=0.0) == [float("inf")]
+    with pytest.raises(ValueError):
+        derive_uav_ranges(uavs, uav_max_ranges=[1.0, 2.0])
+    with pytest.raises(ValueError):
+        derive_uav_ranges(uavs, uav_max_ranges=[0.0])
