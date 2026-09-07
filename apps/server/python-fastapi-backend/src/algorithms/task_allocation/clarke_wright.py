@@ -54,12 +54,17 @@ class ClarkeWrightSolver:
         return seg
 
     # ———— 容量检查 ————
-    def _feasible(self, uav_idx: int, route: list[int]) -> bool:
-        """合并后航程与载荷约束检查"""
-        if sum(self.route_segment_costs(uav_idx, route)) > self.uav_max_ranges[uav_idx]:
+    def _feasible(self, uav_idx: int, route_list: list[list[int]]) -> bool:
+        """每机总量容量检查：全部路线总航程 ≤ max_range 且总载荷 ≤ max_payload"""
+        total_distance = sum(
+            sum(self.route_segment_costs(uav_idx, route)) for route in route_list
+        )
+        if total_distance > self.uav_max_ranges[uav_idx]:
             return False
-        payload = sum(self.tasks[tid].payload_weight for tid in route)
-        if payload > self.uavs[uav_idx].max_payload:
+        total_payload = sum(
+            self.tasks[tid].payload_weight for route in route_list for tid in route
+        )
+        if total_payload > self.uavs[uav_idx].max_payload:
             return False
         return True
 
@@ -94,7 +99,12 @@ class ClarkeWrightSolver:
                         if s <= 0:
                             continue
                         merged = route_list[a] + route_list[b]
-                        if not self._feasible(uav_idx, merged):
+                        other_routes = [
+                            route_list[idx]
+                            for idx in range(len(route_list))
+                            if idx not in (a, b)
+                        ]
+                        if not self._feasible(uav_idx, other_routes + [merged]):
                             continue
                         if best is None or float(s) > best[0]:
                             best = (float(s), uav_idx, a, b)
@@ -105,7 +115,55 @@ class ClarkeWrightSolver:
             merged = route_list[a] + route_list[b]
             routes[uav_idx] = [r for idx, r in enumerate(route_list) if idx not in (a, b)]
             routes[uav_idx].append(merged)
+
+        self._rebalance(routes)
         return routes
+
+    # ———— 容量修复 ————
+    def _rebalance(self, routes: dict[int, list[list[int]]]) -> None:
+        """构造后修复：超容 UAV 路线末尾任务移交给最小代价增量且不超容的目标"""
+        last_moved_from: dict[int, int] = {}  # task_idx -> 上次移出的 UAV（禁止移回）
+        rounds = 0
+        while rounds <= self.N_task:
+            rounds += 1
+            any_moved = False
+            for uav_idx in range(self.N_uav):
+                if self._feasible(uav_idx, routes[uav_idx]):
+                    continue
+                for route in reversed(routes[uav_idx]):
+                    task = route[-1]
+                    best_target: int | None = None
+                    best_inc = float("inf")
+                    for target in range(self.N_uav):
+                        if target == uav_idx or last_moved_from.get(task) == target:
+                            continue
+                        if routes[target]:
+                            candidate = routes[target][:-1] + [routes[target][-1] + [task]]
+                            prev = routes[target][-1][-1]
+                            inc = self.cost_matrix[self.N_uav + prev, self.N_uav + task]
+                        else:
+                            candidate = [[task]]
+                            inc = self.cost_matrix[target, self.N_uav + task]
+                        if not self._feasible(target, candidate):
+                            continue
+                        if inc < best_inc:
+                            best_inc = inc
+                            best_target = target
+                    if best_target is not None:
+                        route.pop()
+                        if not route:
+                            routes[uav_idx].remove(route)
+                        if routes[best_target]:
+                            routes[best_target][-1].append(task)
+                        else:
+                            routes[best_target].append([task])
+                        last_moved_from[task] = uav_idx
+                        any_moved = True
+                        break
+                if any_moved:
+                    break
+            if not any_moved:
+                return
 
     # ———— 转为 DE 个体编码 ————
     def to_individual(self) -> list[int]:

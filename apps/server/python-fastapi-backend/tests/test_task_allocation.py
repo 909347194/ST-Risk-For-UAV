@@ -420,3 +420,50 @@ def test_de_allocate_accepts_warm_start():
     )
     assert len(allocations) == 3
     assert unassigned == []
+
+
+def test_cw_rebalance_range():
+    uavs = [
+        _de_uav(0, 0, "uav-0"),
+        _de_uav(100, 0, "uav-1"),
+        _de_uav(0, 100, "uav-2"),
+    ]
+    tasks = [
+        _de_task(30, 0, "task-0", priority="low"),
+        _de_task(45, 0, "task-1", priority="low"),
+    ]
+    # 两任务都最近 uav-0（30<70、45<55）；uav-0 航程 40：
+    # 合并 [0,1] 总航程 45 > 40 被拒；修复把 t1（单点 45 > 40 也超）移交给
+    # 代价增量最小的 uav-1（55）而非 uav-2（≈110）
+    solver = ClarkeWrightSolver(uavs, tasks, uav_max_ranges=[40.0, 1000.0, 1000.0])
+    routes = solver.solve()
+    flat0 = [t for route in routes[0] for t in route]
+    flat1 = [t for route in routes[1] for t in route]
+    assert flat0 == [0]
+    assert flat1 == [1]
+
+
+def test_cw_rebalance_payload():
+    uav0 = UAV(id="uav-0", position=Position(x=0, y=0, z=0), speed=10.0, max_payload=5.0, battery=1000.0)
+    uav1 = UAV(id="uav-1", position=Position(x=100, y=0, z=0), speed=10.0, max_payload=10.0, battery=1000.0)
+    t0 = Task(id="task-0", position=Position(x=10, y=0, z=0), payload_weight=3.0)
+    t1 = Task(id="task-1", position=Position(x=20, y=0, z=0), payload_weight=3.0)
+    # 两任务都最近 uav-0；总载荷 6 > 5 超容 → t1 移交给 uav-1
+    solver = ClarkeWrightSolver([uav0, uav1], [t0, t1])
+    routes = solver.solve()
+    flat0 = [t for route in routes[0] for t in route]
+    flat1 = [t for route in routes[1] for t in route]
+    assert flat0 == [0]
+    assert flat1 == [1]
+
+
+def test_cw_rebalance_no_target():
+    uav = UAV(id="uav-0", position=Position(x=0, y=0, z=0), speed=10.0, max_payload=5.0, battery=1000.0)
+    t0 = Task(id="task-0", position=Position(x=10, y=0, z=0), payload_weight=3.0)
+    t1 = Task(id="task-1", position=Position(x=20, y=0, z=0), payload_weight=3.0)
+    # 单机、无人可接 → 保持原位、正常返回（无死循环）
+    solver = ClarkeWrightSolver([uav], [t0, t1])
+    routes = solver.solve()
+    assigned = sorted(t for route_list in routes.values() for route in route_list for t in route)
+    assert assigned == [0, 1]
+    assert len(routes[0]) == 2
