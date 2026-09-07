@@ -1,5 +1,6 @@
 """FastAPI 入口 — 优雅启动 / 退出"""
 
+import os
 import sys
 import signal
 import asyncio
@@ -36,7 +37,7 @@ def _print_info(port: int, debug: bool) -> None:
     _log(f"[*] API      : http://localhost:{port}/api/v1")
     _log(f"[*] Docs     : http://localhost:{port}/docs")
     _log(f"[*] Debug    : {debug}")
-    _log(f"[*] PID      : {sys.pid}")
+    _log(f"[*] PID      : {os.getpid()}")
     sys.stdout.write("\n")
     _log("[OK] Server is ready. Press Ctrl+C to stop.")
     sys.stdout.write("\n")
