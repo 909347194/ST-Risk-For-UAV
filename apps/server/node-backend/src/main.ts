@@ -1,7 +1,7 @@
 // NestJS 启动入口 — 优雅启动 / 退出
 
+import * as readline from 'readline';
 import { NestFactory } from '@nestjs/core';
-import { Logger } from '@nestjs/common';
 import { AppModule } from './app';
 
 // ── 控制台输出工具 ──────────────────────────────────────────────
@@ -75,7 +75,6 @@ async function bootstrap() {
 
   // Windows: Ctrl+C 在某些终端发 SIGINT，某些发不到，补一个 readline 兜底
   if (process.platform === 'win32') {
-    const readline = require('readline');
     const rl = readline.createInterface({ input: process.stdin });
     rl.on('SIGINT', () => gracefulShutdown('SIGINT'));
   }

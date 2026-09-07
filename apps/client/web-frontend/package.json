@@ -12,17 +12,21 @@
   },
   "dependencies": {
     "@st-risk/shared-ts": "workspace:*",
-    "vue": "^3.5.0",
-    "vue-router": "^4.5.0",
+    "axios": "^1.7.0",
     "pinia": "^3.0.0",
-    "axios": "^1.7.0"
+    "vue": "^3.5.0",
+    "vue-router": "^4.5.0"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@vitejs/plugin-vue": "^5.2.0",
-    "vite": "^6.0.0",
-    "vue-tsc": "^2.2.0",
+    "@vue/test-utils": "^2.4.0",
+    "eslint": "^10.10.0",
+    "eslint-plugin-vue": "^10.11.0",
     "typescript": "^5.7.0",
+    "typescript-eslint": "^8.69.0",
+    "vite": "^6.0.0",
     "vitest": "^3.0.0",
-    "@vue/test-utils": "^2.4.0"
+    "vue-tsc": "^2.2.0"
   }
 }

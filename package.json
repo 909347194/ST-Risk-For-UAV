@@ -34,9 +34,9 @@
     "lint:node": "pnpm --filter @st-risk/node-backend lint",
     "lint:py": "cd apps/server/python-fastapi-backend && uv run ruff check src/",
 
-    "test": "pnpm run test:web && pnpm run test:node",
-    "test:web": "pnpm --filter @st-risk/web-frontend test",
-    "test:node": "pnpm --filter @st-risk/node-backend test",
+    "test": "pnpm run test:web && pnpm run test:node && pnpm run test:py",
+    "test:web": "pnpm --filter @st-risk/web-frontend exec vitest run --passWithNoTests",
+    "test:node": "pnpm --filter @st-risk/node-backend exec jest --passWithNoTests",
     "test:py": "cd apps/server/python-fastapi-backend && uv run pytest tests/ -v",
 
     "---------------------- 数据库 ----------------------": "",
