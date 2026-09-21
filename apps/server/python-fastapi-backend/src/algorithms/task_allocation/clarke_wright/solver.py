@@ -1,11 +1,4 @@
-"""Clarke-Wright 节约算法 — 多机多任务构造启发式
-
-参考：Clarke G, Wright J W. Scheduling of Vehicles from a Central Depot
-to a Number of Delivery Points. Operations Research, 1964.
-（开放路线变体：无返程段，与 DE 适应度模型一致）
-
-角色：为 DE 提供高质量初始解（warm_start），也可独立使用。
-"""
+"""Clarke-Wright 节约算法求解器 — 组装 encoding / capacity 并驱动主循环"""
 
 import numpy as np
 
@@ -14,6 +7,8 @@ from src.algorithms.task_allocation._common import (
     build_cost_matrix,
     derive_uav_ranges,
 )
+
+from . import capacity, encoding
 
 
 class ClarkeWrightSolver:
@@ -46,27 +41,23 @@ class ClarkeWrightSolver:
     # ———— 路线代价 ————
     def route_segment_costs(self, uav_idx: int, route: list[int]) -> list[float]:
         """路线逐段代价，首段从该 UAV 位置出发"""
-        current = uav_idx
-        seg: list[float] = []
-        for tid in route:
-            seg.append(float(self.cost_matrix[current, self.N_uav + tid]))
-            current = self.N_uav + tid
-        return seg
+        return encoding.route_segment_costs(
+            self.cost_matrix, self.N_uav, self.N_task, uav_idx, route
+        )
 
     # ———— 容量检查 ————
     def _feasible(self, uav_idx: int, route_list: list[list[int]]) -> bool:
         """每机总量容量检查：全部路线总航程 ≤ max_range 且总载荷 ≤ max_payload"""
-        total_distance = sum(
-            sum(self.route_segment_costs(uav_idx, route)) for route in route_list
+        return capacity.feasible(
+            self.cost_matrix,
+            self.N_uav,
+            self.N_task,
+            self.uavs,
+            self.tasks,
+            self.uav_max_ranges,
+            uav_idx,
+            route_list,
         )
-        if total_distance > self.uav_max_ranges[uav_idx]:
-            return False
-        total_payload = sum(
-            self.tasks[tid].payload_weight for route in route_list for tid in route
-        )
-        if total_payload > self.uavs[uav_idx].max_payload:
-            return False
-        return True
 
     # ———— 求解 ————
     def solve(self) -> dict[int, list[list[int]]]:
@@ -122,59 +113,21 @@ class ClarkeWrightSolver:
     # ———— 容量修复 ————
     def _rebalance(self, routes: dict[int, list[list[int]]]) -> None:
         """构造后修复：超容 UAV 路线末尾任务移交给最小代价增量且不超容的目标"""
-        last_moved_from: dict[int, int] = {}  # task_idx -> 上次移出的 UAV（禁止移回）
-        rounds = 0
-        while rounds <= self.N_task:
-            rounds += 1
-            any_moved = False
-            for uav_idx in range(self.N_uav):
-                if self._feasible(uav_idx, routes[uav_idx]):
-                    continue
-                for route in reversed(routes[uav_idx]):
-                    task = route[-1]
-                    best_target: int | None = None
-                    best_inc = float("inf")
-                    for target in range(self.N_uav):
-                        if target == uav_idx or last_moved_from.get(task) == target:
-                            continue
-                        if routes[target]:
-                            candidate = routes[target][:-1] + [routes[target][-1] + [task]]
-                            prev = routes[target][-1][-1]
-                            inc = self.cost_matrix[self.N_uav + prev, self.N_uav + task]
-                        else:
-                            candidate = [[task]]
-                            inc = self.cost_matrix[target, self.N_uav + task]
-                        if not self._feasible(target, candidate):
-                            continue
-                        if inc < best_inc:
-                            best_inc = inc
-                            best_target = target
-                    if best_target is not None:
-                        route.pop()
-                        if not route:
-                            routes[uav_idx].remove(route)
-                        if routes[best_target]:
-                            routes[best_target][-1].append(task)
-                        else:
-                            routes[best_target].append([task])
-                        last_moved_from[task] = uav_idx
-                        any_moved = True
-                        break
-                if any_moved:
-                    break
-            if not any_moved:
-                return
+        capacity.rebalance(
+            self.cost_matrix,
+            self.N_uav,
+            self.N_task,
+            self.uavs,
+            self.tasks,
+            self.uav_max_ranges,
+            routes,
+        )
 
     # ———— 转为 DE 个体编码 ————
     def to_individual(self) -> list[int]:
         """路线 → DE 整数编码: gene[tid] = 该任务所属 UAV 下标"""
         routes = self.solve()
-        individual = [0] * self.N_task
-        for uav_idx, route_list in routes.items():
-            for route in route_list:
-                for tid in route:
-                    individual[tid] = uav_idx
-        return individual
+        return encoding.to_individual(self.cost_matrix, self.N_uav, self.N_task, routes)
 
 
 def clarke_wright_allocate(
