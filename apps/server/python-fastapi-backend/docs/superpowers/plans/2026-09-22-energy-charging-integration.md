@@ -563,6 +563,8 @@ git commit -m "feat(python-api): energy 模块 — 贪心插站策略 A"
 
 ### Task 5: optimal_charging_dp — 策略 E(离散充电量 DP)
 
+> 实现记录(与本节代码块的差异,已随 fix 提交落地):① 末尾提取行 `(e, t, prev)` 应写 `(e, (t, prev))`(本节原稿笔误);② 回溯的 `layers[pos][e]` 精确浮点键查找会因 ulp 误差 KeyError,已按容差键查找修复(commit f235fea,新增 `_find_key` 与 `_add` 容差合并);③ 测试夹具 `_e_matrix()` 未列弧应为 `np.inf` 而非 0(Task 4 裁定同类)。
+
 **Files:**
 - Modify: `src/algorithms/task_allocation/energy/dp.py`(替换占位)
 - Test: `tests/test_energy.py`(追加)
