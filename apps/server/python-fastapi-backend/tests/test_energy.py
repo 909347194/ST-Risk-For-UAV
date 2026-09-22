@@ -42,9 +42,12 @@ def test_battery_levels():
 
 # 节点: 0=D(起点), 1=T1, 2=T2, 3=T3, 4=E(终点), 5=C(充电站)
 # 能耗 (Wh) 取自设计文档 §4.0 表; D→C=50 取自 §4.3
+# 注: §4.0 表声明各弧对称, 却同时列出 C→T2=35 与 T2→C=40(自相矛盾);
+# 因矩阵按对称构造, 后一行会覆盖前一行。按 §4.2/§4.3 演算(C→T2=35,
+# 绕行 T1→C→T2 = 30+35 = 65)取 35, 故 {T2,C} 只保留一行。
 _ENERGIES = [
     (0, 1, 40.0), (1, 2, 60.0), (2, 3, 30.0), (3, 4, 25.0),
-    (0, 5, 50.0), (1, 5, 30.0), (5, 2, 35.0), (2, 5, 40.0), (5, 3, 15.0),
+    (0, 5, 50.0), (1, 5, 30.0), (5, 2, 35.0), (5, 3, 15.0),
 ]
 
 
@@ -72,3 +75,50 @@ def test_check_energy_sigma_defaults_to_10pct_battery():
     ok1, _ = check_energy_feasibility([0, 1, 2, 3, 4], _e_matrix(), B=100.0)
     ok2, _ = check_energy_feasibility([0, 1, 2, 3, 4], _e_matrix(), B=100.0, sigma=10.0)
     assert ok1 == ok2 == False
+
+
+from src.algorithms.task_allocation.energy.greedy import greedy_insert_stations
+
+_STATION = ChargingStation(id="C", position=Position(x=0, y=0), power=700.0)
+
+
+def test_greedy_doc_example():
+    # §4.2: 在 T1 触发, 绕行 C 充满 70, 总时间 520s
+    plan = greedy_insert_stations(
+        [0, 1, 2, 3, 4], _e_matrix(), [_STATION], [5],
+        B=100.0, sigma=10.0, speed=10.0, energy_per_meter=0.1,
+    )
+    assert plan is not None
+    assert plan.node_seq == [0, 1, 5, 2, 3, 4]
+    assert len(plan.charges) == 1
+    c = plan.charges[0]
+    assert c.station_id == "C"
+    assert c.charge_wh == pytest.approx(70.0)
+    assert c.arrive_time == pytest.approx(70.0)
+    assert c.leave_time == pytest.approx(430.0)
+    assert plan.total_time == pytest.approx(520.0)
+    assert plan.total_energy == pytest.approx(160.0)
+    assert plan.arrival_times == pytest.approx([0.0, 40.0, 70.0, 465.0, 495.0, 520.0])
+    assert plan.feasible is True
+
+
+def test_greedy_station_unreachable_returns_none():
+    # 站离 T1 200Wh, 触发时电量 60 连站都到不了
+    m = _e_matrix()
+    m[1, 5] = m[5, 1] = 200.0
+    plan = greedy_insert_stations(
+        [0, 1, 2, 3, 4], m, [_STATION], [5],
+        B=100.0, sigma=10.0, speed=10.0, energy_per_meter=0.1,
+    )
+    assert plan is None
+
+
+def test_greedy_no_charging_needed():
+    # 短路线不触发充电 → 无充电事件的可行计划
+    plan = greedy_insert_stations(
+        [0, 1], _e_matrix(), [_STATION], [5],
+        B=100.0, sigma=10.0, speed=10.0, energy_per_meter=0.1,
+    )
+    assert plan is not None
+    assert plan.charges == [] and plan.node_seq == [0, 1]
+    assert plan.total_time == pytest.approx(40.0)
