@@ -215,7 +215,7 @@ def test_de_solve_seed_reproducible():
 def test_de_basic():
     uavs = _make_uavs(2)
     tasks = _make_tasks(3)
-    allocations, unassigned = de_allocate(uavs, tasks, seed=42, pop_size=20, generations=30)
+    allocations, unassigned, _plans = de_allocate(uavs, tasks, seed=42, pop_size=20, generations=30)
     assert unassigned == []
     pairs = {(a.uav_id, a.task_id) for a in allocations}
     assert len(pairs) == 3  # 全分配、无重复对
@@ -225,16 +225,16 @@ def test_de_basic():
 def test_de_empty_inputs():
     uavs = [_de_uav(0, 0, "uav-0")]
     task = _de_task(10, 0, "task-0")
-    allocations, unassigned = de_allocate([], [task])
+    allocations, unassigned, _plans = de_allocate([], [task])
     assert allocations == [] and unassigned == ["task-0"]
-    allocations, unassigned = de_allocate(uavs, [])
+    allocations, unassigned, _plans = de_allocate(uavs, [])
     assert allocations == [] and unassigned == []
 
 
 def test_de_ignores_unknown_kwargs():
     uavs = _make_uavs(2)
     tasks = _make_tasks(2)
-    allocations, _ = de_allocate(uavs, tasks, seed=0, unknown_thing=123)
+    allocations, _, _ = de_allocate(uavs, tasks, seed=0, unknown_thing=123)
     assert len(allocations) == 2
 
 
@@ -246,7 +246,7 @@ def test_de_cluster_reasonable():
         _de_task(105, 5, "task-2"),
         _de_task(95, 5, "task-3"),
     ]
-    allocations, unassigned = de_allocate(uavs, tasks, pop_size=40, generations=100, seed=0)
+    allocations, unassigned, _plans = de_allocate(uavs, tasks, pop_size=40, generations=100, seed=0)
     assert unassigned == []
     by_task = {a.task_id: a.uav_id for a in allocations}
     assert by_task["task-0"] == "uav-0"
@@ -258,8 +258,8 @@ def test_de_cluster_reasonable():
 def test_de_seed_reproducible():
     uavs = [_de_uav(0, 0, "uav-0"), _de_uav(100, 0, "uav-1")]
     tasks = [_de_task(10, 0, "task-0"), _de_task(90, 0, "task-1"), _de_task(50, 0, "task-2")]
-    a1, _ = de_allocate(uavs, tasks, seed=42)
-    a2, _ = de_allocate(uavs, tasks, seed=42)
+    a1, _, _ = de_allocate(uavs, tasks, seed=42)
+    a2, _, _ = de_allocate(uavs, tasks, seed=42)
     key = lambda a: sorted((x.uav_id, x.task_id, x.estimated_cost) for x in a)
     assert key(a1) == key(a2)
 
@@ -267,7 +267,7 @@ def test_de_seed_reproducible():
 def test_de_via_service():
     uavs = _make_uavs(2)
     tasks = _make_tasks(3)
-    allocations, unassigned = allocate(uavs, tasks, algorithm="de", params={"seed": 0, "pop_size": 10, "generations": 10})
+    allocations, unassigned, _plans = allocate(uavs, tasks, algorithm="de", params={"seed": 0, "pop_size": 10, "generations": 10})
     assert len(allocations) == 3
     assert unassigned == []
 
@@ -415,7 +415,7 @@ def test_de_allocate_accepts_warm_start():
     uavs = _make_uavs(2)
     tasks = _make_tasks(3)
     ws = [0, 1, 0]
-    allocations, unassigned = de_allocate(
+    allocations, unassigned, _plans = de_allocate(
         uavs, tasks, warm_start=ws, pop_size=10, generations=10, seed=0
     )
     assert len(allocations) == 3
@@ -602,3 +602,55 @@ def test_cw_allocate_plans_match_allocations_after_handoff():
     assert unassigned == [] and len(allocations) == 1
     assert allocations[0].uav_id == "uav-1" == plans[0].uav_id
     assert len(plans) == 1 and plans[0].feasible is True
+
+
+# ── DE 能量嵌入 ──
+
+def test_de_with_stations_returns_plans():
+    uavs = [
+        _de_uav(0, 0, "uav-0", battery=100.0),
+        _de_uav(100, 0, "uav-1", battery=100.0),
+    ]
+    tasks = [_de_task(10, 0, "task-0"), _de_task(90, 0, "task-1")]
+    stations = [ChargingStation(id="S", position=Position(x=50, y=0, z=0), power=700.0)]
+    allocations, unassigned, plans = de_allocate(
+        uavs, tasks, stations=stations, sigma=10.0,
+        pop_size=10, generations=5, seed=0,
+    )
+    assert unassigned == [] and len(allocations) == 2
+    assert len(plans) == 2  # 每机一条
+    for p in plans:
+        assert p.uav_id in ("uav-0", "uav-1")
+        assert p.feasible is True
+        assert p.total_time > 0
+
+
+def test_de_fitness_with_energy_uses_real_time():
+    # 1 机 1 任务, 距离 10m → 能耗 1Wh; 直飞到达电量 99 ≥ σ=10 → DP 取直飞
+    # (绕站 S 需充 5Wh, 耗时 5+25.71+4=34.71s > 直飞 10m/10m/s=1s)
+    # fitness = α·Σt + β·max_t + γ·500·violations = 1×1.0 + 0.5×1.0 + 0 = 1.5
+    uavs = [_de_uav(0, 0, "uav-0", battery=100.0)]
+    tasks = [_de_task(10, 0, "task-0")]
+    stations = [ChargingStation(id="S", position=Position(x=50, y=0, z=0), power=700.0)]
+    solver = DiscreteDESolver(uavs, tasks, stations=stations, sigma=10.0, seed=0)
+    f = solver.evaluate_constrained([0])
+    assert f == pytest.approx(1.5)
+
+
+def test_de_without_stations_returns_empty_plans():
+    uavs = [_de_uav(0, 0, "uav-0"), _de_uav(100, 0, "uav-1")]
+    tasks = [_de_task(10, 0, "task-0"), _de_task(90, 0, "task-1")]
+    allocations, unassigned, plans = de_allocate(uavs, tasks, seed=0, pop_size=10, generations=5)
+    assert len(allocations) == 2 and unassigned == []
+    assert plans == []
+
+
+def test_de_invalid_energy_strategy_raises():
+    uavs = [_de_uav(0, 0, "uav-0")]
+    tasks = [_de_task(10, 0, "task-0")]
+    with pytest.raises(ValueError):
+        DiscreteDESolver(
+            uavs, tasks,
+            stations=[ChargingStation(id="S", position=Position(x=5, y=0, z=0), power=700.0)],
+            energy_strategy="bogus",
+        )

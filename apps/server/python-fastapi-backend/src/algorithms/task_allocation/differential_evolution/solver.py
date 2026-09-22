@@ -8,6 +8,12 @@ from src.domain.models import UAV, Task, TaskAllocation
 from src.algorithms.task_allocation._common import (
     build_cost_matrix,
     derive_uav_ranges,
+    build_energy_matrix,
+)
+from src.algorithms.task_allocation.energy import (
+    RechargePlan,
+    greedy_insert_stations,
+    optimal_charging_dp,
 )
 
 from . import encoding, fitness, operators, population
@@ -43,6 +49,9 @@ class DiscreteDESolver:
         penalty_weight: float = 500.0,
         seed: int | None = None,
         warm_start: list[int] | None = None,
+        stations: list | None = None,
+        sigma: float | None = None,
+        energy_strategy: str = "dp",
     ):
         self.uavs = uavs
         self.tasks = tasks
@@ -86,6 +95,22 @@ class DiscreteDESolver:
         # 最大航程: 显式参数优先, 否则按电池/能耗率推算（校验在公共函数内）
         self.uav_max_ranges = derive_uav_ranges(uavs, uav_max_ranges, self.config.energy_per_meter)
 
+        if energy_strategy not in ("greedy", "dp", "none"):
+            raise ValueError(f"energy_strategy 必须为 greedy|dp|none，当前: {energy_strategy}")
+        if sigma is not None and sigma <= 0:
+            raise ValueError(f"sigma 必须 > 0，当前: {sigma}")
+        self.stations = stations or []
+        self.sigma = sigma
+        self.energy_strategy = energy_strategy
+        self._energy_enabled = bool(self.stations) and energy_strategy != "none"
+        if self._energy_enabled:
+            self.e_matrix = build_energy_matrix(uavs, tasks, self.stations, self.config.energy_per_meter)
+            self.station_indices = [self.N_uav + self.N_task + k for k in range(len(self.stations))]
+        else:
+            self.e_matrix = None
+            self.station_indices = None
+        self._dp_cache: dict[tuple[int, tuple[int, ...]], RechargePlan | None] = {}
+
         self._build_cost_matrix()
 
     # ———— 代价矩阵 ————
@@ -115,6 +140,59 @@ class DiscreteDESolver:
     ) -> dict[int, list[float]]:
         """计算每架 UAV 任务序列的逐段代价"""
         return encoding.compute_path_costs(self.cost_matrix, self.N_uav, self.N_task, uav_task_dict)
+
+    # ———— 补给计划(内层 DP, 带缓存) ————
+    def _plan_for_seq(self, uav_idx: int, seq: list[int]) -> RechargePlan | None:
+        """每机序列 → 补给计划;(uav_idx, seq) 全局缓存,整个进化过程复用"""
+        key = (uav_idx, tuple(seq))
+        if key in self._dp_cache:
+            return self._dp_cache[key]
+        seq_matrix = [uav_idx] + [self.N_uav + tid for tid in seq]
+        uav = self.uavs[uav_idx]
+        if self.energy_strategy == "greedy":
+            plan = greedy_insert_stations(
+                seq_matrix, self.e_matrix, self.stations, self.station_indices,
+                uav.battery, self.sigma, uav.speed, self.config.energy_per_meter,
+            )
+        else:
+            plan = optimal_charging_dp(
+                seq_matrix, self.e_matrix, self.stations, self.station_indices,
+                uav.battery, self.sigma, uav.speed, self.config.energy_per_meter,
+            )
+        self._dp_cache[key] = plan
+        return plan
+
+    def _infeasible_plan(self, uav_idx: int, seq: list[int]) -> RechargePlan:
+        seq_matrix = [uav_idx] + [self.N_uav + tid for tid in seq]
+        uav = self.uavs[uav_idx]
+        arrival_times = [0.0]
+        total_energy = 0.0
+        t = 0.0
+        for prev, nxt in zip(seq_matrix, seq_matrix[1:]):
+            total_energy += float(self.e_matrix[prev, nxt])
+            t += float(self.e_matrix[prev, nxt]) / self.config.energy_per_meter / uav.speed
+            arrival_times.append(t)
+        return RechargePlan(
+            uav_id=uav.id, node_seq=seq_matrix, charges=[],
+            total_time=t, total_energy=total_energy,
+            arrival_times=arrival_times, feasible=False,
+        )
+
+    def recharge_plans(self, allocation: dict[int, list[int]]) -> list[RechargePlan]:
+        """最优分配的补给计划;energy 关闭返回 []"""
+        if not self._energy_enabled:
+            return []
+        plans: list[RechargePlan] = []
+        for uav_idx, seq in allocation.items():
+            if not seq:
+                continue
+            plan = self._plan_for_seq(uav_idx, seq)
+            if plan is not None:
+                plan.uav_id = self.uavs[uav_idx].id
+                plans.append(plan)
+            else:
+                plans.append(self._infeasible_plan(uav_idx, seq))
+        return plans
 
     # ———— 自适应参数 ————
     def _adaptive_params(self, gen: int) -> tuple[float, float]:
@@ -205,6 +283,9 @@ class DiscreteDESolver:
             beta=beta,
             gamma=gamma,
             penalty_weight=penalty_weight,
+            plan_fn=self._plan_for_seq if self._energy_enabled else None,
+            energy_enabled=self._energy_enabled,
+            energy_per_meter=self.config.energy_per_meter,
         )
 
     # ———— 适应度 ————
@@ -285,16 +366,19 @@ def de_allocate(
     penalty_weight: float = 500.0,
     seed: int | None = None,
     warm_start: list[int] | None = None,
+    stations: list | None = None,
+    sigma: float | None = None,
+    energy_strategy: str = "dp",
     **kwargs,
-) -> tuple[list[TaskAllocation], list[str]]:
+) -> tuple[list[TaskAllocation], list[str], list[RechargePlan]]:
     """差分进化任务分配 — 与 hungarian/auction 同签名
 
-    返回 (allocations, unassigned)。allocations 按每架 UAV 的执行顺序
-    排列（按 uav_id 分组即得任务序列）；DE 编码覆盖全部任务，
-    unassigned 恒为空。
+    返回 (allocations, unassigned, plans)。allocations 按每架 UAV 的执行顺序
+    排列(按 uav_id 分组即得任务序列);DE 编码覆盖全部任务,
+    unassigned 恒为空。plans 为每机一条补给计划(无 stations 时为空)。
     """
     if not uavs or not tasks:
-        return [], [t.id for t in tasks]
+        return [], [t.id for t in tasks], []
 
     solver = DiscreteDESolver(
         uavs=uavs,
@@ -310,6 +394,9 @@ def de_allocate(
         penalty_weight=penalty_weight,
         seed=seed,
         warm_start=warm_start,
+        stations=stations,
+        sigma=sigma,
+        energy_strategy=energy_strategy,
     )
     allocation, _stats = solver.solve()
 
@@ -325,4 +412,5 @@ def de_allocate(
                     estimated_cost=costs[k],
                 )
             )
-    return allocations, []
+    plans = solver.recharge_plans(allocation)
+    return allocations, [], plans

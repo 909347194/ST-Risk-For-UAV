@@ -6,7 +6,12 @@ import numpy as np
 
 from src.domain.models import UAV, Task
 
-from .config import RANGE_PENALTY, DEADLINE_VIOLATION_PENALTY, LOAD_BALANCE_WEIGHT
+from .config import (
+    RANGE_PENALTY,
+    DEADLINE_VIOLATION_PENALTY,
+    LOAD_BALANCE_WEIGHT,
+    ENERGY_INFEASIBLE_VIOLATION,
+)
 from .encoding import decode, compute_path_costs
 
 
@@ -44,6 +49,10 @@ def evaluate_constrained(
     beta: float = 0.5,
     gamma: float = 1.0,
     penalty_weight: float = 500.0,
+    *,
+    plan_fn=None,            # Callable[[uav_idx, seq], RechargePlan | None] — 内部带缓存
+    energy_enabled: bool = False,
+    energy_per_meter: float = 0.1,
 ) -> float:
     """约束感知适应度 (Zhao et al. 2012, Eq. 23)
 
@@ -64,6 +73,28 @@ def evaluate_constrained(
     for uav_id, seq in uav_task_dict.items():
         if not seq:
             continue
+        if energy_enabled and plan_fn is not None:
+            plan = plan_fn(uav_id, seq)
+            if plan is not None:
+                # 用真实时间(含充电)替换路径代价项(秒)
+                total_path_cost += plan.total_time
+                max_flight_time = max(max_flight_time, plan.total_time)
+                # deadline 用真实到达时刻(节点序列中任务节点 = n_uav + tid)
+                for p, node in enumerate(plan.node_seq):
+                    if node >= n_uav:
+                        tid = node - n_uav
+                        task = tasks[tid]
+                        if task.time_limit is not None and plan.arrival_times[p] > task.time_limit:
+                            violations += DEADLINE_VIOLATION_PENALTY
+            else:
+                # 插站也修不好: 退回飞行时间 + 能量违反惩罚
+                path_cost = sum(costs_dict[uav_id])
+                speed = uavs[uav_id].speed
+                fallback = path_cost / speed if speed > 0 else 0.0
+                total_path_cost += fallback
+                max_flight_time = max(max_flight_time, fallback)
+                violations += ENERGY_INFEASIBLE_VIOLATION
+            continue
         path_cost = sum(costs_dict[uav_id])
         total_path_cost += path_cost
 
@@ -77,15 +108,16 @@ def evaluate_constrained(
             violations += (path_cost - max_range) / max_range
 
     # 约束 2: 任务 deadline（累计到达时刻）
-    for uav_id, seq in uav_task_dict.items():
-        speed = uavs[uav_id].speed
-        cumulative = 0.0
-        for k, tid in enumerate(seq):
-            if speed > 0:
-                cumulative += costs_dict[uav_id][k] / speed
-            task = tasks[tid]
-            if task.time_limit is not None and cumulative > task.time_limit:
-                violations += DEADLINE_VIOLATION_PENALTY
+    if not energy_enabled:
+        for uav_id, seq in uav_task_dict.items():
+            speed = uavs[uav_id].speed
+            cumulative = 0.0
+            for k, tid in enumerate(seq):
+                if speed > 0:
+                    cumulative += costs_dict[uav_id][k] / speed
+                task = tasks[tid]
+                if task.time_limit is not None and cumulative > task.time_limit:
+                    violations += DEADLINE_VIOLATION_PENALTY
 
     # 约束 3: 负载均衡
     task_counts = [len(seq) for seq in uav_task_dict.values()]

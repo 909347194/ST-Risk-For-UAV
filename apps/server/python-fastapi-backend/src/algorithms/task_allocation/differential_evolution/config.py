@@ -6,6 +6,7 @@ from dataclasses import dataclass
 RANGE_PENALTY = 10000.0            # 基础适应度中超航程的固定惩罚
 DEADLINE_VIOLATION_PENALTY = 0.5   # 单个任务 deadline 违反的惩罚增量
 LOAD_BALANCE_WEIGHT = 0.01         # 负载均衡方差惩罚系数
+ENERGY_INFEASIBLE_VIOLATION = 1.0   # energy 层不可行路线的固定违反量(乘 penalty_weight)
 FLIP_PROBABILITY = 0.1             # 启发式/扰动初始化中基因随机翻转比例
 F_DECAY = 0.6                      # F 随进化进度衰减幅度（0.9 → 0.36）
 CR_GROWTH = 0.4                    # CR 随进化进度增长幅度（0.5 → 0.9）
