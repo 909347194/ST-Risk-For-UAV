@@ -645,6 +645,30 @@ def test_de_without_stations_returns_empty_plans():
     assert plans == []
 
 
+def test_de_fitness_energy_with_charging_stop():
+    # 直飞不可行(15−10=5 < σ=10) → DP 插站 S 充 5 → 总时间 10 + 5×3600/700 = 35.714…
+    # fitness = α·t + β·t = 1.5 × 35.714285714285715
+    uavs = [UAV(id="uav-0", position=Position(x=0, y=0, z=0), speed=10.0,
+                max_payload=5.0, battery=15.0)]
+    tasks = [_de_task(100, 0, "task-0")]
+    stations = [ChargingStation(id="S", position=Position(x=50, y=0, z=0), power=700.0)]
+    solver = DiscreteDESolver(uavs, tasks, stations=stations, sigma=10.0, seed=0)
+    f = solver.evaluate_constrained([0])
+    assert f == pytest.approx(53.57142857142857)
+
+
+def test_de_fitness_energy_deadline_uses_real_arrival_time():
+    # 同上场景, 任务 time_limit=30 < 真实到达时刻 35.714… → deadline 违反 +0.5
+    # fitness = 53.571… + γ·penalty_weight·0.5 = 53.571… + 250 = 303.571…
+    uavs = [UAV(id="uav-0", position=Position(x=0, y=0, z=0), speed=10.0,
+                max_payload=5.0, battery=15.0)]
+    tasks = [_de_task(100, 0, "task-0", time_limit=30.0)]
+    stations = [ChargingStation(id="S", position=Position(x=50, y=0, z=0), power=700.0)]
+    solver = DiscreteDESolver(uavs, tasks, stations=stations, sigma=10.0, seed=0)
+    f = solver.evaluate_constrained([0])
+    assert f == pytest.approx(303.5714285714286)
+
+
 def test_de_invalid_energy_strategy_raises():
     uavs = [_de_uav(0, 0, "uav-0")]
     tasks = [_de_task(10, 0, "task-0")]

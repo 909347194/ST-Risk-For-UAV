@@ -79,9 +79,10 @@ def evaluate_constrained(
                 # 用真实时间(含充电)替换路径代价项(秒)
                 total_path_cost += plan.total_time
                 max_flight_time = max(max_flight_time, plan.total_time)
-                # deadline 用真实到达时刻(节点序列中任务节点 = n_uav + tid)
+                # deadline 用真实到达时刻(节点序列中任务节点 = n_uav + tid,
+                # 站节点 = n_uav + n_task + k,不参与 deadline 检查)
                 for p, node in enumerate(plan.node_seq):
-                    if node >= n_uav:
+                    if n_uav <= node < n_uav + n_task:
                         tid = node - n_uav
                         task = tasks[tid]
                         if task.time_limit is not None and plan.arrival_times[p] > task.time_limit:
