@@ -267,7 +267,7 @@ def test_de_seed_reproducible():
 def test_de_via_service():
     uavs = _make_uavs(2)
     tasks = _make_tasks(3)
-    allocations, unassigned, _plans = allocate(uavs, tasks, algorithm="de", params={"seed": 0, "pop_size": 10, "generations": 10})
+    allocations, unassigned = allocate(uavs, tasks, algorithm="de", params={"seed": 0, "pop_size": 10, "generations": 10})
     assert len(allocations) == 3
     assert unassigned == []
 
@@ -371,7 +371,7 @@ def test_cw_empty_inputs():
 def test_cw_via_service():
     uavs = _make_uavs(2)
     tasks = _make_tasks(3)
-    allocations, unassigned, _plans = allocate(uavs, tasks, algorithm="cw")
+    allocations, unassigned = allocate(uavs, tasks, algorithm="cw")
     assert len(allocations) == 3
     assert unassigned == []
 
@@ -678,3 +678,79 @@ def test_de_invalid_energy_strategy_raises():
             stations=[ChargingStation(id="S", position=Position(x=5, y=0, z=0), power=700.0)],
             energy_strategy="bogus",
         )
+
+
+# ── API 级:stations / recharge_plans / 400 ──
+
+import asyncio
+
+from httpx import ASGITransport, AsyncClient
+from src.main import app
+
+
+def _api_allocate(payload: dict):
+    async def _call():
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            return await client.post("/api/v1/tasks/allocate", json=payload)
+    return asyncio.run(_call())
+
+
+def test_allocate_api_with_stations_returns_recharge_plans():
+    payload = {
+        "uavs": [
+            {"id": "uav-1", "position": {"x": 0, "y": 0, "z": 0}, "speed": 10.0,
+             "max_payload": 5.0, "battery": 100.0, "status": "idle"},
+        ],
+        "tasks": [
+            {"id": "task-1", "position": {"x": 400, "y": 0, "z": 0},
+             "priority": "high", "payload_weight": 1.0},
+        ],
+        "algorithm": "cw",
+        "stations": [
+            {"id": "S", "position": {"x": 200, "y": 0, "z": 0}, "power": 700.0},
+        ],
+        "sigma": 10.0,
+    }
+    r = _api_allocate(payload)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["algorithm_used"] == "cw"
+    assert len(body["recharge_plans"]) >= 1
+    p = body["recharge_plans"][0]
+    assert p["uav_id"] == "uav-1" and p["feasible"] is True
+    assert "charges" in p and "total_time" in p and "total_energy" in p
+
+
+def test_allocate_api_without_stations_backward_compatible():
+    payload = {
+        "uavs": [
+            {"id": "uav-1", "position": {"x": 0, "y": 0, "z": 0}, "speed": 10.0,
+             "max_payload": 5.0, "battery": 100.0, "status": "idle"},
+        ],
+        "tasks": [
+            {"id": "task-1", "position": {"x": 400, "y": 0, "z": 0},
+             "priority": "high", "payload_weight": 1.0},
+        ],
+        "algorithm": "cw",
+    }
+    r = _api_allocate(payload)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["recharge_plans"] == []
+
+
+def test_allocate_api_invalid_param_returns_400():
+    payload = {
+        "uavs": [
+            {"id": "uav-1", "position": {"x": 0, "y": 0, "z": 0}, "speed": 10.0,
+             "max_payload": 5.0, "battery": 100.0, "status": "idle"},
+        ],
+        "tasks": [
+            {"id": "task-1", "position": {"x": 400, "y": 0, "z": 0},
+             "priority": "high", "payload_weight": 1.0},
+        ],
+        "algorithm": "cw",
+        "params": {"uav_max_ranges": [60.0, 60.0]},  # 长度 ≠ UAV 数
+    }
+    r = _api_allocate(payload)
+    assert r.status_code == 400, r.text

@@ -48,6 +48,8 @@ def _register() -> None:
                 "energy_per_meter": {"type": "number", "default": 0.1, "description": "能耗率 (Wh/m)"},
                 "seed": {"type": "integer", "default": None, "description": "随机种子"},
                 "warm_start": {"type": "array", "default": None, "description": "DE 热启动个体（整数编码，长度 = 任务数）"},
+                "sigma": {"type": "number", "default": None, "description": "安全余量 (Wh)，缺省 0.1×电池"},
+                "energy_strategy": {"type": "string", "default": "auto", "description": "充电策略 greedy|dp|none，auto=算法默认"},
             },
         },
     )
@@ -61,6 +63,8 @@ def _register() -> None:
             "params_schema": {
                 "uav_max_ranges": {"type": "array", "default": None, "description": "每机最大航程 (m)，缺省按电池推算"},
                 "energy_per_meter": {"type": "number", "default": 0.1, "description": "能耗率 (Wh/m)"},
+                "sigma": {"type": "number", "default": None, "description": "安全余量 (Wh)，缺省 0.1×电池"},
+                "energy_strategy": {"type": "string", "default": "auto", "description": "充电策略 greedy|dp|none，auto=算法默认"},
             },
         },
     )
