@@ -79,6 +79,14 @@ class Obstacle(BaseModel):
     radius: float = Field(gt=0, description="半径 (m)")
 
 
+class ChargingStation(BaseModel):
+    """充电站"""
+    id: str
+    position: Position
+    power: float = Field(gt=0, description="充电功率 (W)")
+    slots: int = Field(default=1, ge=1, description="同时可服务无人机数")
+
+
 # ── 评估 ──────────────────────────────────────────────
 
 class RiskAssessment(BaseModel):
