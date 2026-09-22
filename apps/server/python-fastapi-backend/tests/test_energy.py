@@ -122,3 +122,18 @@ def test_greedy_no_charging_needed():
     assert plan is not None
     assert plan.charges == [] and plan.node_seq == [0, 1]
     assert plan.total_time == pytest.approx(40.0)
+
+
+def test_greedy_charged_exit_leg_below_sigma_returns_none():
+    # 站本身可达, 但充满后离站段 T1→C→T2 中 C→T2=95 > B−σ=90:
+    # 到 T2 只剩 5 < σ, 插站救不了 → 必须返回 None, 不能给出 feasible=True 的假计划
+    m = np.zeros((6, 6))
+    m[0, 1] = m[1, 0] = 5.0
+    m[1, 2] = m[2, 1] = 90.0
+    m[1, 5] = m[5, 1] = 10.0
+    m[5, 2] = m[2, 5] = 95.0
+    plan = greedy_insert_stations(
+        [0, 1, 2], m, [_STATION], [5],
+        B=100.0, sigma=10.0, speed=10.0, energy_per_meter=0.1,
+    )
+    assert plan is None

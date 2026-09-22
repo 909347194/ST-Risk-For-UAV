@@ -62,6 +62,9 @@ def greedy_insert_stations(seq, e_matrix, stations, station_indices, B, sigma, s
             )
             e = B
             i = s
+            # 复检离站段: 充满后仍满足不了 σ(含 m[s,nxt] > B 的极端情形) → 该站救不了
+            if e - float(e_matrix[s, nxt]) < sigma:
+                return None
         # 飞往下一节点
         t += fly_time(i, nxt)
         total_energy += float(e_matrix[i, nxt])
