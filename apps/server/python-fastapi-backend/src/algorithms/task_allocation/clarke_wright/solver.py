@@ -6,6 +6,12 @@ from src.domain.models import UAV, Task, TaskAllocation
 from src.algorithms.task_allocation._common import (
     build_cost_matrix,
     derive_uav_ranges,
+    build_energy_matrix,
+)
+from src.algorithms.task_allocation.energy import (
+    RechargePlan,
+    greedy_insert_stations,
+    optimal_charging_dp,
 )
 
 from . import capacity, encoding
@@ -26,12 +32,32 @@ class ClarkeWrightSolver:
         tasks: list[Task],
         uav_max_ranges: list[float] | None = None,
         energy_per_meter: float = 0.1,
+        stations: list | None = None,
+        sigma: float | None = None,
+        energy_strategy: str = "greedy",
     ):
+        if energy_strategy not in ("greedy", "dp", "none"):
+            raise ValueError(
+                f"energy_strategy 必须为 greedy|dp|none，当前: {energy_strategy}"
+            )
+        if sigma is not None and sigma <= 0:
+            raise ValueError(f"sigma 必须 > 0，当前: {sigma}")
         self.uavs = uavs
         self.tasks = tasks
         self.N_uav = len(uavs)
         self.N_task = len(tasks)
+        self.energy_per_meter = energy_per_meter
+        self.stations = stations or []
+        self.sigma = sigma
+        self.energy_strategy = energy_strategy
+        self._energy_enabled = bool(self.stations) and energy_strategy != "none"
         self.uav_max_ranges = derive_uav_ranges(uavs, uav_max_ranges, energy_per_meter)
+        if self._energy_enabled:
+            self.e_matrix = build_energy_matrix(uavs, tasks, self.stations, energy_per_meter)
+            self.station_indices = [self.N_uav + self.N_task + k for k in range(len(self.stations))]
+        else:
+            self.e_matrix = None
+            self.station_indices = None
         self._build_cost_matrix()
 
     # ———— 代价矩阵 ————
@@ -57,6 +83,12 @@ class ClarkeWrightSolver:
             self.uav_max_ranges,
             uav_idx,
             route_list,
+            e_matrix=self.e_matrix,
+            stations=self.stations,
+            station_indices=self.station_indices,
+            sigma=self.sigma,
+            energy_strategy=self.energy_strategy,
+            energy_per_meter=self.energy_per_meter,
         )
 
     # ———— 求解 ————
@@ -110,6 +142,97 @@ class ClarkeWrightSolver:
         self._rebalance(routes)
         return routes
 
+    # ———— 能量计划 ————
+    def _plan_for(self, uav_idx: int, route: list[int]) -> RechargePlan | None:
+        """给定路线生成补给计划;energy 关闭时不会调用"""
+        seq = [uav_idx] + [self.N_uav + tid for tid in route]
+        uav = self.uavs[uav_idx]
+        if self.energy_strategy == "dp":
+            plan = optimal_charging_dp(
+                seq, self.e_matrix, self.stations, self.station_indices,
+                uav.battery, self.sigma, uav.speed, self.energy_per_meter,
+            )
+        else:
+            plan = greedy_insert_stations(
+                seq, self.e_matrix, self.stations, self.station_indices,
+                uav.battery, self.sigma, uav.speed, self.energy_per_meter,
+            )
+        if plan is not None:
+            plan.uav_id = uav.id
+        return plan
+
+    def _infeasible_plan(self, uav_idx: int, route: list[int]) -> RechargePlan:
+        """插站失败且无处移交:标记不可行的占位计划(飞行代价仍给出)"""
+        seq = [uav_idx] + [self.N_uav + tid for tid in route]
+        uav = self.uavs[uav_idx]
+        arrival_times = [0.0]
+        total_energy = 0.0
+        t = 0.0
+        for prev, nxt in zip(seq, seq[1:]):
+            total_energy += float(self.e_matrix[prev, nxt])
+            t += float(self.e_matrix[prev, nxt]) / self.energy_per_meter / uav.speed
+            arrival_times.append(t)
+        return RechargePlan(
+            uav_id=uav.id, node_seq=seq, charges=[],
+            total_time=t, total_energy=total_energy,
+            arrival_times=arrival_times, feasible=False,
+        )
+
+    def _energy_slack(self, uav_idx: int, routes: dict[int, list[list[int]]]) -> float:
+        """能量余量 (Wh) = 电池 − 该机全部路线飞行能耗(插站前的粗估)"""
+        used = 0.0
+        for route in routes[uav_idx]:
+            seq = [uav_idx] + [self.N_uav + tid for tid in route]
+            used += sum(float(self.e_matrix[p, q]) for p, q in zip(seq, seq[1:]))
+        return self.uavs[uav_idx].battery - used
+
+    def _energy_repair(self, routes: dict[int, list[list[int]]]) -> dict[int, list[RechargePlan]]:
+        """构造后修复:插站失败的任务移交给能量余量最大的可行目标"""
+        last_moved: dict[int, int] = {}
+        for _ in range(self.N_task + 1):
+            moved = False
+            for uav_idx in range(self.N_uav):
+                for route in list(routes[uav_idx]):
+                    if self._plan_for(uav_idx, route) is not None:
+                        continue
+                    task = route[-1]
+                    targets = sorted(
+                        (t for t in range(self.N_uav)
+                         if t != uav_idx and last_moved.get(task) != t),
+                        key=lambda t: -self._energy_slack(t, routes),
+                    )
+                    for target in targets:
+                        if self._plan_for(target, [task]) is not None:
+                            routes[uav_idx].remove(route)
+                            route.pop()
+                            if route:
+                                routes[uav_idx].append(route)
+                            routes[target].append([task])
+                            last_moved[task] = uav_idx
+                            moved = True
+                            break
+                    if moved:
+                        break
+                if moved:
+                    break
+            if not moved:
+                break
+        plans: dict[int, list[RechargePlan]] = {i: [] for i in range(self.N_uav)}
+        for uav_idx, route_list in routes.items():
+            for route in route_list:
+                plan = self._plan_for(uav_idx, route)
+                plans[uav_idx].append(
+                    plan if plan is not None else self._infeasible_plan(uav_idx, route)
+                )
+        return plans
+
+    def build_recharge_plans(self, routes: dict[int, list[list[int]]]) -> list[RechargePlan]:
+        """对外:energy 关闭返回 [];否则每路线一条计划(uav 顺序、路线顺序)"""
+        if not self._energy_enabled:
+            return []
+        plans = self._energy_repair(routes)
+        return [p for uav_idx in range(self.N_uav) for p in plans[uav_idx]]
+
     # ———— 容量修复 ————
     def _rebalance(self, routes: dict[int, list[list[int]]]) -> None:
         """构造后修复：超容 UAV 路线末尾任务移交给最小代价增量且不超容的目标"""
@@ -135,22 +258,28 @@ def clarke_wright_allocate(
     tasks: list[Task],
     uav_max_ranges: list[float] | None = None,
     energy_per_meter: float = 0.1,
+    stations: list | None = None,
+    sigma: float | None = None,
+    energy_strategy: str = "greedy",
     **kwargs,
-) -> tuple[list[TaskAllocation], list[str]]:
+) -> tuple[list[TaskAllocation], list[str], list[RechargePlan]]:
     """Clarke-Wright 任务分配 — 与 hungarian/auction/de 同签名
 
-    返回 (allocations, unassigned)。allocations 按 UAV 下标、路线创建
+    返回 (allocations, unassigned, plans)。allocations 按 UAV 下标、路线创建
     顺序拼接输出，保留 CW 的访问顺序；CW 覆盖全部任务，
-    unassigned 恒为空。
+    unassigned 恒为空。plans 为每路线一条补给计划(无 stations 时为空)。
     """
     if not uavs or not tasks:
-        return [], [t.id for t in tasks]
+        return [], [t.id for t in tasks], []
 
     solver = ClarkeWrightSolver(
         uavs=uavs,
         tasks=tasks,
         uav_max_ranges=uav_max_ranges,
         energy_per_meter=energy_per_meter,
+        stations=stations,
+        sigma=sigma,
+        energy_strategy=energy_strategy,
     )
     routes = solver.solve()
 
@@ -167,4 +296,5 @@ def clarke_wright_allocate(
                         estimated_cost=seg_costs[k],
                     )
                 )
-    return allocations, []
+    plans = solver.build_recharge_plans(routes)
+    return allocations, [], plans

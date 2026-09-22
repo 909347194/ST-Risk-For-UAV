@@ -354,7 +354,7 @@ def test_cw_to_individual():
 def test_cw_order_preserved():
     uavs = [_de_uav(0, 0, "uav-0")]
     tasks = [_de_task(10, 0, "task-0"), _de_task(20, 0, "task-1")]
-    allocations, unassigned = clarke_wright_allocate(uavs, tasks)
+    allocations, unassigned, _plans = clarke_wright_allocate(uavs, tasks)
     assert [a.task_id for a in allocations] == ["task-0", "task-1"]  # CW 访问顺序保留
     assert unassigned == []
 
@@ -362,16 +362,16 @@ def test_cw_order_preserved():
 def test_cw_empty_inputs():
     uavs = [_de_uav(0, 0, "uav-0")]
     task = _de_task(10, 0, "task-0")
-    allocations, unassigned = clarke_wright_allocate([], [task])
+    allocations, unassigned, _plans = clarke_wright_allocate([], [task])
     assert allocations == [] and unassigned == ["task-0"]
-    allocations, unassigned = clarke_wright_allocate(uavs, [])
+    allocations, unassigned, _plans = clarke_wright_allocate(uavs, [])
     assert allocations == [] and unassigned == []
 
 
 def test_cw_via_service():
     uavs = _make_uavs(2)
     tasks = _make_tasks(3)
-    allocations, unassigned = allocate(uavs, tasks, algorithm="cw")
+    allocations, unassigned, _plans = allocate(uavs, tasks, algorithm="cw")
     assert len(allocations) == 3
     assert unassigned == []
 
@@ -491,3 +491,78 @@ def test_build_distance_matrix_includes_stations():
     # 不带站时与旧行为一致(不含权重)
     d2 = build_distance_matrix(uavs, tasks)
     assert d2.shape == (2, 2) and d2[0, 1] == pytest.approx(5.0)
+
+
+# ── CW 能量嵌入 ──
+
+def _cw_station(x: float, y: float, sid: str = "S") -> ChargingStation:
+    return ChargingStation(id=sid, position=Position(x=x, y=y, z=0), power=700.0)
+
+
+def test_cw_with_stations_merges_and_charges():
+    # 1 机 B=100, T1(400,0)、T2(1000,0): 直飞 T2 后电量 0 < σ;
+    # 站 S(450,0) 使合并可行: T1→S→T2, 充 45, 总时间 ≈ 331.43s
+    uav = UAV(id="uav-0", position=Position(x=0, y=0, z=0), speed=10.0,
+              max_payload=5.0, battery=100.0)
+    t0 = Task(id="task-0", position=Position(x=400, y=0, z=0), payload_weight=1.0, priority="low")
+    t1 = Task(id="task-1", position=Position(x=1000, y=0, z=0), payload_weight=1.0, priority="low")
+    allocations, unassigned, plans = clarke_wright_allocate(
+        [uav], [t0, t1], stations=[_cw_station(450, 0)], sigma=10.0
+    )
+    assert unassigned == []
+    assert len(allocations) == 2
+    assert len(plans) == 1
+    p = plans[0]
+    assert p.uav_id == "uav-0" and p.feasible is True
+    assert len(p.charges) == 1
+    assert p.charges[0].station_id == "S"
+    assert p.charges[0].charge_wh == pytest.approx(45.0)
+    assert p.total_time == pytest.approx(331.4286, rel=1e-3)
+
+
+def test_cw_energy_repair_hands_off_unreachable():
+    # uav-0 电池 50 够不到 T(800,0), 站也够不到 → 移交给能量余量大的 uav-1
+    uav0 = UAV(id="uav-0", position=Position(x=0, y=0, z=0), speed=10.0,
+               max_payload=5.0, battery=50.0)
+    uav1 = UAV(id="uav-1", position=Position(x=2000, y=0, z=0), speed=10.0,
+               max_payload=5.0, battery=1000.0)
+    t0 = Task(id="task-0", position=Position(x=800, y=0, z=0), payload_weight=1.0)
+    # uav_max_ranges 显式放宽, 避免 capacity.rebalance 抢在能量修复前移走任务
+    solver = ClarkeWrightSolver(
+        [uav0, uav1], [t0], stations=[_cw_station(0, 1000)], sigma=10.0,
+        uav_max_ranges=[5000.0, 100000.0],
+    )
+    routes = solver.solve()
+    plans = solver.build_recharge_plans(routes)
+    assert routes[0] == []            # 任务已移出 uav-0
+    assert routes[1] == [[0]]         # 移交给 uav-1
+    assert len(plans) == 1
+    assert plans[0].uav_id == "uav-1" and plans[0].feasible is True
+
+
+def test_cw_energy_infeasible_marked_in_plan():
+    # 单机、站不可达 → 任务保留, plan.feasible=False
+    uav = UAV(id="uav-0", position=Position(x=0, y=0, z=0), speed=10.0,
+              max_payload=5.0, battery=50.0)
+    t0 = Task(id="task-0", position=Position(x=800, y=0, z=0), payload_weight=1.0)
+    allocations, unassigned, plans = clarke_wright_allocate(
+        [uav], [t0], stations=[_cw_station(0, 1000)], sigma=10.0
+    )
+    assert unassigned == [] and len(allocations) == 1  # 任务保留
+    assert len(plans) == 1
+    assert plans[0].feasible is False
+
+
+def test_cw_without_stations_returns_empty_plans():
+    uavs = [_de_uav(0, 0, "uav-0"), _de_uav(100, 0, "uav-1")]
+    tasks = [_de_task(10, 0, "task-0"), _de_task(90, 0, "task-1")]
+    allocations, unassigned, plans = clarke_wright_allocate(uavs, tasks)
+    assert len(allocations) == 2 and unassigned == []
+    assert plans == []
+
+
+def test_cw_invalid_energy_strategy_raises():
+    uavs = [_de_uav(0, 0, "uav-0")]
+    tasks = [_de_task(10, 0, "task-0")]
+    with pytest.raises(ValueError):
+        ClarkeWrightSolver(uavs, tasks, stations=[_cw_station(50, 0)], energy_strategy="bogus")

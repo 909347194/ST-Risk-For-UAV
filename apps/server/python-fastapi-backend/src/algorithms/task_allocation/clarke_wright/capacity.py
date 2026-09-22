@@ -5,6 +5,7 @@ from __future__ import annotations
 import numpy as np
 
 from src.domain.models import UAV, Task
+from src.algorithms.task_allocation.energy import greedy_insert_stations, optimal_charging_dp
 
 from .encoding import route_segment_costs
 
@@ -18,6 +19,13 @@ def feasible(
     uav_max_ranges: list[float],
     uav_idx: int,
     route_list: list[list[int]],
+    *,
+    e_matrix=None,
+    stations=None,
+    station_indices=None,
+    sigma: float | None = None,
+    energy_strategy: str = "greedy",
+    energy_per_meter: float = 0.1,
 ) -> bool:
     """每机总量容量检查：全部路线总航程 ≤ max_range 且总载荷 ≤ max_payload"""
     total_distance = sum(
@@ -31,6 +39,23 @@ def feasible(
     )
     if total_payload > uavs[uav_idx].max_payload:
         return False
+    # —— 能量检查（仅 energy 层启用时；构造期快检: 直飞或插站可行即放行）——
+    if e_matrix is not None:
+        uav = uavs[uav_idx]
+        for route in route_list:
+            seq = [uav_idx] + [n_uav + tid for tid in route]
+            if energy_strategy == "dp":
+                plan = optimal_charging_dp(
+                    seq, e_matrix, stations, station_indices,
+                    uav.battery, sigma, uav.speed, energy_per_meter,
+                )
+            else:
+                plan = greedy_insert_stations(
+                    seq, e_matrix, stations, station_indices,
+                    uav.battery, sigma, uav.speed, energy_per_meter,
+                )
+            if plan is None:
+                return False
     return True
 
 
