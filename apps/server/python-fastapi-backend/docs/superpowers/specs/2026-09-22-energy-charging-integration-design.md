@@ -28,7 +28,8 @@
 | σ 缺省值 | 有 stations 且 sigma 未指定时,每机取 `0.1 × battery`(与上游 §4 例子 B=100, σ=10 一致) |
 | 能量修不好的处理 | CW 任务仍保留(覆盖全部任务的设计语义不变),该机 recharge_plan 标记 `feasible=False` |
 | UAV 级 energy_per_meter | 不做(YAGNI,全局参数够用) |
-| 向后兼容 | stations 缺省(空列表)时一切行为与现状一致,现有测试不改动通过 |
+| 返回签名 | cw/de 入口函数改为 3 元组 `(allocations, unassigned, plans)`;hungarian/auction 保持 2 元组;service 保留 `allocate`(2 元组)供既有调用方,新增 `allocate_with_plans`(3 元组)供端点使用 |
+| 向后兼容 | stations 缺省(空列表)时行为与输出内容不变;既有测试仅 cw/de 入口直接解包处做 2→3 机械修改,其余一律不改动 |
 
 ## 3. 文件与改动清单
 
@@ -81,6 +82,7 @@ class RechargePlan:
     charges: list[ChargeEvent]
     total_time: float             # 飞行 + 充电总时间 (s)
     total_energy: float           # 总飞行能耗 (Wh)
+    arrival_times: list[float]    # 与 node_seq 对齐的逐节点到达时刻 (s),DE deadline 检查用
     feasible: bool
 ```
 
@@ -150,10 +152,10 @@ def optimal_charging_dp(seq, e_matrix, stations, B, sigma, delta=None) -> Rechar
 ### 3.6 API 与注册表
 
 - `src/schemas/task_allocation.py`:
-  - `AllocateRequest` += `stations: list[ChargingStationIn] = []`、`sigma: float | None = None`、`energy_strategy: str = "auto"`("auto" = cw→greedy, de→dp, 其余 none)。
-  - `AllocateResponse` += `recharge_plans: list[UAVRechargePlanOut]`(每机:uav_id、charges、total_time、total_energy、feasible);无 stations 时为 `[]`。
-- `src/services/task_allocation/service.py`:`allocate()` 透传 stations/sigma/energy_strategy;
-  hungarian/auction 入口函数签名补 `**kwargs` 保持统一。
+  - `AllocateRequest` += `stations: list[ChargingStation] = []`(直接复用领域模型,与 uavs/tasks 一致)、`sigma: float | None = None`、`energy_strategy: str = "auto"`("auto" = cw→greedy, de→dp, 其余 none)。
+  - `AllocateResponse` += `recharge_plans: list[UAVRechargePlanOut]`;**每条路线一条**(CW 一机可能多条路线,DE 每机一条),字段:uav_id、charges、total_time、total_energy、feasible;无 stations 时为 `[]`。
+- `src/services/task_allocation/service.py`:新增 `allocate_with_plans()`(3 元组,供端点)与私有 `_run()`;
+  `allocate()` 保持 2 元组签名不变(既有调用方/测试零影响);hungarian/auction 已有 `**kwargs`,无需改。
 - `src/algorithms/task_allocation/__init__.py`:cw/de 的 params_schema 增加
   `sigma`、`energy_strategy(greedy|dp|none)` 条目,`stations` 说明注为请求体字段。
 - `src/api/v1/endpoints/task_allocation.py`:捕获 `ValueError` → `HTTPException(400)`(修复验证时发现的 500)。
