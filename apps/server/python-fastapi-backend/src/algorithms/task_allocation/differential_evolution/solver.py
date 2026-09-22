@@ -103,6 +103,8 @@ class DiscreteDESolver:
         self.sigma = sigma
         self.energy_strategy = energy_strategy
         self._energy_enabled = bool(self.stations) and energy_strategy != "none"
+        if self._energy_enabled and energy_per_meter <= 0:
+            raise ValueError(f"energy_per_meter 必须 > 0，当前: {energy_per_meter}")
         if self._energy_enabled:
             self.e_matrix = build_energy_matrix(uavs, tasks, self.stations, self.config.energy_per_meter)
             self.station_indices = [self.N_uav + self.N_task + k for k in range(len(self.stations))]
@@ -179,7 +181,11 @@ class DiscreteDESolver:
         )
 
     def recharge_plans(self, allocation: dict[int, list[int]]) -> list[RechargePlan]:
-        """最优分配的补给计划;energy 关闭返回 []"""
+        """最优分配的补给计划;energy 关闭返回 []
+
+        注: 空序列(无任务)UAV 有意不产生计划条目(§3.6 规定每机一条,
+        实现上跳过空序列, 仅输出有任务的 UAV)。
+        """
         if not self._energy_enabled:
             return []
         plans: list[RechargePlan] = []

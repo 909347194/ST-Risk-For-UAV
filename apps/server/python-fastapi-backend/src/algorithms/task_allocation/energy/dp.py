@@ -82,7 +82,7 @@ def optimal_charging_dp(seq, e_matrix, stations, station_indices, B, sigma, spee
                 if e_at < sigma - 1e-9:
                     continue
                 for e2 in levels:
-                    if e2 < e_at - 1e-9:
+                    if e2 < e_at:
                         continue
                     e_arr = e2 - float(e_matrix[s, nxt])
                     if e_arr < sigma - 1e-9:

@@ -31,8 +31,16 @@ def _run(
     algo_fn = get_algorithm(AlgorithmCategory.TASK_ALLOCATION, algorithm)
     kwargs = dict(params or {})
     kwargs["stations"] = stations or []
-    kwargs["sigma"] = sigma
-    kwargs["energy_strategy"] = _resolve_strategy(algorithm, energy_strategy)
+    # params 与顶层参数优先级合并: 显式顶层值覆盖 params, 否则 params 值透传
+    # (params_schema 广告了 sigma / energy_strategy, 不得被默认值静默丢弃)
+    if sigma is not None:
+        kwargs["sigma"] = sigma
+    if energy_strategy != "auto":
+        kwargs["energy_strategy"] = _resolve_strategy(algorithm, energy_strategy)
+    elif "energy_strategy" in kwargs:
+        kwargs["energy_strategy"] = _resolve_strategy(algorithm, kwargs["energy_strategy"])
+    else:
+        kwargs["energy_strategy"] = _resolve_strategy(algorithm, "auto")
     result = algo_fn(uavs, tasks, **kwargs)
     if len(result) == 3:
         return result

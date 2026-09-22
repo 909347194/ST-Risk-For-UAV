@@ -142,6 +142,32 @@ def test_greedy_charged_exit_leg_below_sigma_returns_none():
     assert plan is None
 
 
+def test_greedy_tries_next_station_after_exit_leg_fail():
+    # 节点: 0=起点, 1=任务1, 2=任务2, 3=站 S1, 4=站 S2; B=100, σ=10
+    # m[0,1]=5, m[1,2]=90 → 到任务1 电量 95, 直飞任务2 仅剩 5 < σ → 触发插站
+    # S1 绕行 10+95=105 最小: 到站 95−10=85 ≥ σ, 但充满后离站段 100−95=5 < σ → 复检失败
+    # S2 绕行 25+85=110 次优: 到站 95−25=70 ≥ σ, 充满后离站段 100−85=15 ≥ σ → 取 S2
+    # (旧实现只在 S1 上复检, 失败即返回 None, 路由本可由 S2 服务的计划被丢弃)
+    m = np.full((5, 5), np.inf)
+    m[0, 1] = m[1, 0] = 5.0
+    m[1, 2] = m[2, 1] = 90.0
+    m[1, 3] = m[3, 1] = 10.0
+    m[3, 2] = m[2, 3] = 95.0
+    m[1, 4] = m[4, 1] = 25.0
+    m[4, 2] = m[2, 4] = 85.0
+    s1 = ChargingStation(id="S1", position=Position(x=0, y=0), power=700.0)
+    s2 = ChargingStation(id="S2", position=Position(x=0, y=0), power=700.0)
+    plan = greedy_insert_stations(
+        [0, 1, 2], m, [s1, s2], [3, 4],
+        B=100.0, sigma=10.0, speed=10.0, energy_per_meter=0.1,
+    )
+    assert plan is not None
+    assert plan.node_seq == [0, 1, 4, 2]
+    assert len(plan.charges) == 1
+    assert plan.charges[0].station_id == "S2"
+    assert plan.charges[0].charge_wh == pytest.approx(30.0)
+
+
 from src.algorithms.task_allocation.energy.dp import optimal_charging_dp
 
 

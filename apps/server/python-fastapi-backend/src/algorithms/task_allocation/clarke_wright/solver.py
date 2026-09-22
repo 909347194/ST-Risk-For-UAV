@@ -51,6 +51,8 @@ class ClarkeWrightSolver:
         self.sigma = sigma
         self.energy_strategy = energy_strategy
         self._energy_enabled = bool(self.stations) and energy_strategy != "none"
+        if self._energy_enabled and energy_per_meter <= 0:
+            raise ValueError(f"energy_per_meter 必须 > 0，当前: {energy_per_meter}")
         self.uav_max_ranges = derive_uav_ranges(uavs, uav_max_ranges, energy_per_meter)
         if self._energy_enabled:
             self.e_matrix = build_energy_matrix(uavs, tasks, self.stations, energy_per_meter)
@@ -187,7 +189,7 @@ class ClarkeWrightSolver:
         return self.uavs[uav_idx].battery - used
 
     def _energy_repair(self, routes: dict[int, list[list[int]]]) -> dict[int, list[RechargePlan]]:
-        """构造后修复:插站失败的任务移交给能量余量最大的可行目标"""
+        """构造后修复:插站失败的任务移交给能量余量最大且不超容(航程/载荷)的目标"""
         last_moved: dict[int, int] = {}
         for _ in range(self.N_task + 1):
             moved = False

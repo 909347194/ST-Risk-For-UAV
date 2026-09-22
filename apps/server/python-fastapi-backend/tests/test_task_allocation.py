@@ -5,7 +5,7 @@ import pytest
 
 from src.domain.models import UAV, Task, Position, ChargingStation
 from src.domain.enums import TaskPriority
-from src.services.task_allocation import allocate
+from src.services.task_allocation import allocate, allocate_with_plans
 from src.algorithms.task_allocation.differential_evolution import DiscreteDESolver, de_allocate
 from src.algorithms.task_allocation._common import derive_uav_ranges
 from src.algorithms.task_allocation.clarke_wright import ClarkeWrightSolver, clarke_wright_allocate
@@ -680,6 +680,30 @@ def test_de_invalid_energy_strategy_raises():
         )
 
 
+# ── 服务级参数透传 ──
+
+def test_service_params_sigma_flows_through():
+    # 判别几何: 电池 115Wh, 任务在 (1000,0) → 直飞能耗 100Wh, 到达电量 15Wh。
+    # params sigma=20 → 15 < 20 触发充电: 绕站 S(500,0)(uav→S 50Wh)充 50 至满,
+    # 离站段 50Wh, 到站 65 ≥ 20 → 可行且带 1 次充电;
+    # 旧实现 params sigma 被顶层 None 覆盖 → σ 退化 0.1×115=11.5, 15 ≥ 11.5 不充电。
+    # 断言充电事件存在即证明 params["sigma"]=20 真正到达求解器。
+    uav = _de_uav(0, 0, "uav-0", battery=115.0)
+    task = _de_task(1000, 0, "task-0")
+    allocations, unassigned, plans = allocate_with_plans(
+        [uav], [task], algorithm="cw",
+        params={"sigma": 20.0},
+        stations=[ChargingStation(id="S", position=Position(x=500, y=0, z=0), power=700.0)],
+    )
+    assert unassigned == [] and len(allocations) == 1
+    assert len(plans) == 1
+    p = plans[0]
+    assert p.feasible is True
+    assert len(p.charges) == 1
+    assert p.charges[0].station_id == "S"
+    assert p.charges[0].charge_wh == pytest.approx(50.0)
+
+
 # ── API 级:stations / recharge_plans / 400 ──
 
 import asyncio
@@ -751,6 +775,24 @@ def test_allocate_api_invalid_param_returns_400():
         ],
         "algorithm": "cw",
         "params": {"uav_max_ranges": [60.0, 60.0]},  # 长度 ≠ UAV 数
+    }
+    r = _api_allocate(payload)
+    assert r.status_code == 400, r.text
+
+
+def test_allocate_api_invalid_energy_strategy_returns_400():
+    # 非法 energy_strategy 经服务层 _resolve_strategy 抛 ValueError → 端点映射 400
+    payload = {
+        "uavs": [
+            {"id": "uav-1", "position": {"x": 0, "y": 0, "z": 0}, "speed": 10.0,
+             "max_payload": 5.0, "battery": 100.0, "status": "idle"},
+        ],
+        "tasks": [
+            {"id": "task-1", "position": {"x": 400, "y": 0, "z": 0},
+             "priority": "high", "payload_weight": 1.0},
+        ],
+        "algorithm": "cw",
+        "energy_strategy": "bogus",
     }
     r = _api_allocate(payload)
     assert r.status_code == 400, r.text
