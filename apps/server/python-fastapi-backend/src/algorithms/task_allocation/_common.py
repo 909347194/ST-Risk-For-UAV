@@ -46,3 +46,34 @@ def derive_uav_ranges(
         u.battery / energy_per_meter if energy_per_meter > 0 else float("inf")
         for u in uavs
     ]
+
+
+def build_distance_matrix(
+    uavs: list[UAV],
+    tasks: list[Task],
+    stations: list | None = None,
+) -> np.ndarray:
+    """(N_uav+N_task+N_s)×同尺寸 纯物理距离矩阵(无优先级权重)
+
+    索引约定: 0..N_uav-1 为 UAV，N_uav..N_uav+N_task-1 为任务，其后为充电站。
+    """
+    stations = stations or []
+    points = [u.position for u in uavs] + [t.position for t in tasks] + [s.position for s in stations]
+    n = len(points)
+    matrix = np.zeros((n, n))
+    for i in range(n):
+        for j in range(n):
+            if i == j:
+                continue
+            matrix[i, j] = distance(points[i], points[j])
+    return matrix
+
+
+def build_energy_matrix(
+    uavs: list[UAV],
+    tasks: list[Task],
+    stations: list | None = None,
+    energy_per_meter: float = 0.1,
+) -> np.ndarray:
+    """能耗矩阵 (Wh) = 纯距离 × energy_per_meter，供能量层使用"""
+    return build_distance_matrix(uavs, tasks, stations) * energy_per_meter

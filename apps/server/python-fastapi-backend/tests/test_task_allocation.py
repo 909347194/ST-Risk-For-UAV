@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from src.domain.models import UAV, Task, Position
+from src.domain.models import UAV, Task, Position, ChargingStation
 from src.domain.enums import TaskPriority
 from src.services.task_allocation import allocate
 from src.algorithms.task_allocation.differential_evolution import DiscreteDESolver, de_allocate
@@ -467,3 +467,27 @@ def test_cw_rebalance_no_target():
     assigned = sorted(t for route_list in routes.values() for route in route_list for t in route)
     assert assigned == [0, 1]
     assert len(routes[0]) == 2
+
+
+# ── 距离 / 能耗矩阵 ──
+
+def test_build_distance_matrix_includes_stations():
+    from src.algorithms.task_allocation._common import (
+        build_distance_matrix,
+        build_energy_matrix,
+    )
+
+    uavs = [_de_uav(0, 0, "uav-0")]
+    tasks = [_de_task(3, 4, "task-0")]
+    stations = [ChargingStation(id="S", position=Position(x=0, y=4, z=0), power=700.0)]
+    d = build_distance_matrix(uavs, tasks, stations)
+    assert d.shape == (3, 3)
+    assert d[0, 1] == pytest.approx(5.0)     # uav→task
+    assert d[0, 2] == pytest.approx(4.0)     # uav→station
+    assert d[1, 2] == pytest.approx(3.0)     # task→station
+    assert d[1, 0] == pytest.approx(5.0)     # 对称
+    e = build_energy_matrix(uavs, tasks, stations, energy_per_meter=0.1)
+    assert e[0, 1] == pytest.approx(0.5)
+    # 不带站时与旧行为一致(不含权重)
+    d2 = build_distance_matrix(uavs, tasks)
+    assert d2.shape == (2, 2) and d2[0, 1] == pytest.approx(5.0)
