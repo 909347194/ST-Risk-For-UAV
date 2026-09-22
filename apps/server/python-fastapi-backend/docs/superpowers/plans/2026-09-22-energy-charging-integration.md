@@ -804,6 +804,8 @@ git commit -m "feat(python-api): energy 模块 — 离散充电量 DP 最优策�
 
 ### Task 6: CW 嵌入 — 能量快检、_energy_repair、3 元组返回
 
+> 实现记录(与本节代码块的差异,已随 fix 提交落地):① `_energy_repair` 移交条件补 `capacity.feasible`(无能量参数,旧航程/载荷语义)——本节原稿只查能量,违反 spec §3.4「不超容」;② `clarke_wright_allocate` 中 `build_recharge_plans(routes)` 提前到构建 allocations **之前**(修复会原位改 routes,先建 allocations 会造成归属矛盾);③ 测试任务需 `priority="low"`(默认 MEDIUM 权重 1.5 会先被航程门拦截)。
+
 **Files:**
 - Modify: `src/algorithms/task_allocation/clarke_wright/solver.py`
 - Modify: `src/algorithms/task_allocation/clarke_wright/capacity.py`
