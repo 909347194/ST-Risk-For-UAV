@@ -52,7 +52,10 @@ _ENERGIES = [
 
 
 def _e_matrix() -> np.ndarray:
-    m = np.zeros((6, 6))
+    # 未列入 _ENERGIES 的弧视为不存在(inf), 不能把「无弧」读成 0 成本边:
+    # §4.0 表无 C↔E 弧, 若默认 0, DP 会借 T3→C→E 免费绕行, 使 §4.4 的
+    # 「充 60 终点电量 0 < σ → 被拒」失效(实测得 458.57s 而非 520s)。
+    m = np.full((6, 6), np.inf)
     for i, j, w in _ENERGIES:
         m[i, j] = w
         m[j, i] = w
@@ -137,3 +140,49 @@ def test_greedy_charged_exit_leg_below_sigma_returns_none():
         B=100.0, sigma=10.0, speed=10.0, energy_per_meter=0.1,
     )
     assert plan is None
+
+
+from src.algorithms.task_allocation.energy.dp import optimal_charging_dp
+
+
+def test_dp_matches_greedy_on_single_station():
+    # §4.3: 单站 + 带 σ 最优 = 充满, DP 与贪心一致 (520s)
+    plan = optimal_charging_dp(
+        [0, 1, 2, 3, 4], _e_matrix(), [_STATION], [5],
+        B=100.0, sigma=10.0, speed=10.0, energy_per_meter=0.1,
+    )
+    assert plan is not None
+    assert plan.total_time == pytest.approx(520.0)
+    assert len(plan.charges) == 1
+    assert plan.charges[0].charge_wh == pytest.approx(70.0)
+    assert plan.arrival_times == pytest.approx([0.0, 40.0, 70.0, 465.0, 495.0, 520.0])
+
+
+def test_dp_rejects_partial_charge_violating_sigma():
+    # §4.4: 充 60 的总时间 468.57s 更短, 但终点电量 0 < σ → 必须被拒
+    plan = optimal_charging_dp(
+        [0, 1, 2, 3, 4], _e_matrix(), [_STATION], [5],
+        B=100.0, sigma=10.0, speed=10.0, energy_per_meter=0.1,
+    )
+    assert plan is not None
+    assert plan.total_time == pytest.approx(520.0)  # 而非 468.57
+    assert plan.charges[0].charge_wh == pytest.approx(70.0)  # 而非 60
+
+
+def test_dp_infeasible_returns_none():
+    m = _e_matrix()
+    m[1, 5] = m[5, 1] = 200.0  # 站不可达且直飞不可行
+    plan = optimal_charging_dp(
+        [0, 1, 2, 3, 4], m, [_STATION], [5],
+        B=100.0, sigma=10.0, speed=10.0, energy_per_meter=0.1,
+    )
+    assert plan is None
+
+
+def test_dp_no_charging_needed():
+    plan = optimal_charging_dp(
+        [0, 1], _e_matrix(), [_STATION], [5],
+        B=100.0, sigma=10.0, speed=10.0, energy_per_meter=0.1,
+    )
+    assert plan is not None
+    assert plan.charges == [] and plan.total_time == pytest.approx(40.0)
