@@ -8,15 +8,25 @@ from .plan import ChargeEvent, RechargePlan, battery_levels
 _State = tuple[float, tuple[float, int | None]]
 
 
+def _find_key(states: dict[float, _State], e: float, tol: float = 1e-6) -> float | None:
+    """容差键查找: 浮点逆算恢复的电量键可能与正向键差 1 ulp"""
+    for k in states:
+        if abs(k - e) <= tol * max(1.0, abs(e)):
+            return k
+    return None
+
+
 def _add(
     states: dict[float, _State],
     e: float,
     t: float,
     prev: tuple[float, int | None],
 ) -> None:
-    cur = states.get(e)
-    if cur is None or t < cur[0] - 1e-9:
+    k = _find_key(states, e)
+    if k is None:
         states[e] = (t, prev)
+    elif t < states[k][0] - 1e-9:
+        states[k] = (t, prev)
 
 
 def _prune(states: dict[float, _State]) -> dict[float, _State]:
@@ -92,6 +102,13 @@ def optimal_charging_dp(seq, e_matrix, stations, station_indices, B, sigma, spee
     decisions: list[tuple[float, int | None]] = []
     e = e_end
     for pos in range(n - 1, 0, -1):
+        found = _find_key(layers[pos], e)
+        if found is None:
+            raise RuntimeError(
+                f"DP 回溯失败: 电量键 {e!r} 在位置 {pos} 无容差匹配"
+                f"(容差 {1e-6 * max(1.0, abs(e)):.3g} 内不存在正向存储键, 疑似算法缺陷而非舍入误差)"
+            )
+        e = found  # 用真实存储键继续, 避免误差累积
         _t, (q, k) = layers[pos][e]
         decisions.append((q, k))
         i = seq[pos - 1]

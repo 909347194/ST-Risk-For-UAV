@@ -186,3 +186,26 @@ def test_dp_no_charging_needed():
     )
     assert plan is not None
     assert plan.charges == [] and plan.total_time == pytest.approx(40.0)
+
+
+def test_dp_float_key_backtrack_regression():
+    # 浮点键回归: 非整数能耗下, 回溯逆算的电量键与正向键可能差 1 ulp,
+    # 精确键查找 layers[pos][e] 会 KeyError(dp.py 用 _find_key 容差查找修复)。
+    # 参数形状沿用审查裁定场景(B=100/σ=10/seq [0,1,2]/站=节点 3/speed=10/rate=0.1);
+    # 数值取一组实测触发旧实现 KeyError 的能耗(裁定原文 33.3/60.7/10.1/20.2
+    # 在旧实现下恰能精确往返、不触发崩溃, 故改用本组数值作真正的回归守卫)。
+    m = np.full((4, 4), np.inf)
+    m[0, 1] = m[1, 0] = 37.6
+    m[1, 2] = m[2, 1] = 87.2
+    m[1, 3] = m[3, 1] = 8.8
+    m[3, 2] = m[2, 3] = 53.0
+    plan = optimal_charging_dp(
+        [0, 1, 2], m, [_STATION], [3],
+        B=100.0, sigma=10.0, speed=10.0, energy_per_meter=0.1,
+    )
+    assert plan is not None
+    # 直飞 1→2 不可行; 绕站 1→3→2: 到站 62.4−8.8=53.6, 最小可行档 70
+    # → q = 70−53.6 = 16.4; 总时间 = 37.6+8.8+16.4×3600/700+53.0
+    assert len(plan.charges) == 1
+    assert plan.charges[0].charge_wh == pytest.approx(16.4, rel=1e-9)
+    assert plan.total_time == pytest.approx(183.74285714285716, rel=1e-9)
