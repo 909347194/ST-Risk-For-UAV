@@ -1200,6 +1200,8 @@ git commit -m "feat(python-api): CW 求解器接入能量快检与构造后补�
 
 ### Task 7: DE 嵌入 — DP 内层最优法、缓存、3 元组返回
 
+> 实现记录(与本节代码块的差异,已随 fix 提交落地):① 能量分支内联 deadline 循环的守卫是 `if n_uav <= node < n_uav + n_task:`——本节原稿写 `node >= n_uav` 会把插站后的站节点当任务下标,`tasks[tid]` IndexError,恰好崩溃在充电修复场景;② `test_de_fitness_with_energy_uses_real_time` 断言 1.5 而非 15.0(10m/10m/s = 1s,本节注释把米当秒);③ 新增两个充电插入场景的 fitness 测试。
+
 **Files:**
 - Modify: `src/algorithms/task_allocation/differential_evolution/config.py`
 - Modify: `src/algorithms/task_allocation/differential_evolution/fitness.py`
