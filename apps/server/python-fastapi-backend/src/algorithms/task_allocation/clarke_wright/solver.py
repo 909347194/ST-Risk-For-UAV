@@ -202,7 +202,10 @@ class ClarkeWrightSolver:
                         key=lambda t: -self._energy_slack(t, routes),
                     )
                     for target in targets:
-                        if self._plan_for(target, [task]) is not None:
+                        if self._plan_for(target, [task]) is not None and capacity.feasible(
+                            self.cost_matrix, self.N_uav, self.N_task, self.uavs, self.tasks,
+                            self.uav_max_ranges, target, routes[target] + [[task]],
+                        ):
                             routes[uav_idx].remove(route)
                             route.pop()
                             if route:
@@ -282,6 +285,7 @@ def clarke_wright_allocate(
         energy_strategy=energy_strategy,
     )
     routes = solver.solve()
+    plans = solver.build_recharge_plans(routes)  # 能量修复会就地改写 routes, 先取 plans
 
     allocations: list[TaskAllocation] = []
     for uav_idx in range(len(uavs)):
@@ -296,5 +300,4 @@ def clarke_wright_allocate(
                         estimated_cost=seg_costs[k],
                     )
                 )
-    plans = solver.build_recharge_plans(routes)
     return allocations, [], plans

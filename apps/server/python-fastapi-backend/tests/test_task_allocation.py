@@ -566,3 +566,39 @@ def test_cw_invalid_energy_strategy_raises():
     tasks = [_de_task(10, 0, "task-0")]
     with pytest.raises(ValueError):
         ClarkeWrightSolver(uavs, tasks, stations=[_cw_station(50, 0)], energy_strategy="bogus")
+
+
+def test_cw_energy_repair_respects_payload_capacity():
+    # uav-0 电池 50 够不到 T_a(800,0), 站也够不到; uav-1 能量有余,
+    # 但载荷 3+3=6 > 5 → 容量检查拒绝移交, 任务各自保留
+    uav0 = UAV(id="uav-0", position=Position(x=0, y=0, z=0), speed=10.0,
+               max_payload=5.0, battery=50.0)
+    uav1 = UAV(id="uav-1", position=Position(x=2000, y=0, z=0), speed=10.0,
+               max_payload=5.0, battery=1000.0)
+    t_a = Task(id="task-a", position=Position(x=800, y=0, z=0), payload_weight=3.0)
+    t_b = Task(id="task-b", position=Position(x=2100, y=0, z=0), payload_weight=3.0)
+    solver = ClarkeWrightSolver(
+        [uav0, uav1], [t_a, t_b], stations=[_cw_station(0, 1000)], sigma=10.0,
+        uav_max_ranges=[5000.0, 100000.0],
+    )
+    routes = solver.solve()
+    plans = solver.build_recharge_plans(routes)
+    assert routes[0] == [[0]] and routes[1] == [[1]]  # 无移交
+    assert plans[0].feasible is False and plans[0].uav_id == "uav-0"
+    assert plans[1].feasible is True and plans[1].uav_id == "uav-1"
+
+
+def test_cw_allocate_plans_match_allocations_after_handoff():
+    # 移交场景经 clarke_wright_allocate: 分配与计划归属一致 (均为 uav-1)
+    uav0 = UAV(id="uav-0", position=Position(x=0, y=0, z=0), speed=10.0,
+               max_payload=5.0, battery=50.0)
+    uav1 = UAV(id="uav-1", position=Position(x=2000, y=0, z=0), speed=10.0,
+               max_payload=5.0, battery=1000.0)
+    t0 = Task(id="task-0", position=Position(x=800, y=0, z=0), payload_weight=1.0)
+    allocations, unassigned, plans = clarke_wright_allocate(
+        [uav0, uav1], [t0], stations=[_cw_station(0, 1000)], sigma=10.0,
+        uav_max_ranges=[5000.0, 100000.0],
+    )
+    assert unassigned == [] and len(allocations) == 1
+    assert allocations[0].uav_id == "uav-1" == plans[0].uav_id
+    assert len(plans) == 1 and plans[0].feasible is True
