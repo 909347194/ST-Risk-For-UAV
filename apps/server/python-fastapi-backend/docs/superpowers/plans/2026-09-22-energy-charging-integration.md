@@ -528,6 +528,8 @@ def greedy_insert_stations(
             )
             e = B
             i = s
+            if e - float(e_matrix[s, nxt]) < sigma:
+                return None  # 充满后出站段仍到不了下一节点(审查修复,见 progress.md Task 4)
         # 飞往下一节点
         t += fly_time(i, nxt)
         total_energy += float(e_matrix[i, nxt])
