@@ -185,6 +185,9 @@ src/
 
 ## API 端点
 
+> 任务分配模块的完整接口文档（字段表、实测示例、算法参数、代价语义、已知限制）见
+> **[docs/api/task-allocation.md](docs/api/task-allocation.md)**。下表仅为端点速查。
+
 ### 公共
 
 | 方法 | 路径 | 说明 |
@@ -218,7 +221,8 @@ src/
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| POST | `/tasks/allocate` | 任务分配（支持多算法） |
+| POST | `/tasks/allocate` | 任务分配（支持多算法：hungarian / auction / cw / de） |
+| GET | `/tasks/algorithms` | 列出可用的任务分配算法及其参数 |
 
 ### ⑤ 航线规划 (`/paths`)
 

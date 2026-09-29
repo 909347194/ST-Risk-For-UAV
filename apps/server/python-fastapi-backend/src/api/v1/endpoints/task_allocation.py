@@ -4,7 +4,6 @@ from fastapi import APIRouter, HTTPException
 
 from src.domain.exceptions import AlgorithmNotFoundError
 from src.schemas.task_allocation import AllocateRequest, AllocateResponse
-from src.schemas.route_planning import PlanResponse
 from src.services import task_allocation as service
 
 router = APIRouter()
@@ -20,7 +19,8 @@ async def allocate_tasks(req: AllocateRequest) -> AllocateResponse:
             algorithm=req.algorithm,
             params=req.params,
         )
-    except AlgorithmNotFoundError as e:
+    # 算法不存在、算法参数非法 — 均为客户端错误，须回传 400 而非 500
+    except (AlgorithmNotFoundError, ValueError) as e:
         raise HTTPException(status_code=400, detail=str(e))
 
     return AllocateResponse(
