@@ -3,6 +3,7 @@
 import heapq
 import math
 
+from src.algorithms.path_planning._common import validate_bounds
 from src.domain.models import Position, Waypoint, Obstacle
 
 
@@ -29,6 +30,7 @@ def astar_plan(
 ) -> list[Waypoint]:
     """A* 栅格搜索，返回航点列表"""
     if bounds:
+        validate_bounds(bounds)
         x_min, x_max = bounds["x_min"], bounds["x_max"]
         y_min, y_max = bounds["y_min"], bounds["y_max"]
     else:

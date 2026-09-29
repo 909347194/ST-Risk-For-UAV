@@ -33,7 +33,11 @@ async def register_uav(req: UAVCreateRequest) -> UAVResponse:
 @router.get("", response_model=UAVListResponse)
 async def list_uavs(status: str | None = None) -> UAVListResponse:
     """列出无人机"""
-    uav_status = UAVStatus(status) if status else None
+    try:
+        uav_status = UAVStatus(status) if status else None
+    except ValueError as e:  # 非法枚举值 — 客户端错误
+        raise HTTPException(status_code=400, detail=str(e))
+
     uavs = service.list_uavs(uav_status)
     return UAVListResponse(uavs=uavs, total=len(uavs))
 

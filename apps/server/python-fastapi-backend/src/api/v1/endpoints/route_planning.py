@@ -25,7 +25,8 @@ async def plan_path(req: PlanRequest) -> PlanResponse:
             grid_resolution=req.grid_resolution,
             bounds=req.bounds,
         )
-    except AlgorithmNotFoundError as e:
+    # 算法不存在、算法参数非法（如 bounds 缺键/非数值）— 均为客户端错误
+    except (AlgorithmNotFoundError, ValueError) as e:
         raise HTTPException(status_code=400, detail=str(e))
 
     return PlanResponse(plan=plan, algorithm_used=req.algorithm)

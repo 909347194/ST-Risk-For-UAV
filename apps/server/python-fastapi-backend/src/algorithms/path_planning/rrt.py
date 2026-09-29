@@ -3,6 +3,7 @@
 import math
 import random
 
+from src.algorithms.path_planning._common import validate_bounds
 from src.domain.models import Position, Waypoint, Obstacle
 
 
@@ -46,6 +47,7 @@ def rrt_plan(
 ) -> list[Waypoint]:
     """RRT 快速随机树算法，返回航点列表"""
     if bounds:
+        validate_bounds(bounds)
         x_min, x_max = bounds["x_min"], bounds["x_max"]
         y_min, y_max = bounds["y_min"], bounds["y_max"]
     else:
