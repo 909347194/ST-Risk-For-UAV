@@ -1604,8 +1604,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from src.db.models import UAVModel
 from src.domain.enums import RiskLevel, UAVStatus
-from src.domain.models import (AdaptabilityResult, Position, RiskAssessment,
-                               TaskAllocation, UAV)
+from src.domain.models import Position, RiskAssessment, TaskAllocation, UAV
 from src.repositories.db import (AdaptabilityDbRepository, AllocationRunDbRepository,
                                  FlightLogDbRepository, RiskRecordDbRepository,
                                  UAVDbRepository)
