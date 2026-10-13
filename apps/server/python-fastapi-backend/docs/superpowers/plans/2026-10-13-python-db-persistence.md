@@ -1760,9 +1760,23 @@ git commit -m "feat(python-db): 添加 SQLAlchemy 仓储实现与集成测试"
 ```python
 """仓储工厂 —— 默认必须是内存实现"""
 
+import pytest
+
 from src.repositories import factory
 from src.repositories.flight_log_repo import FlightLogRepository
 from src.repositories.uav_repo import UAVRepository
+
+
+@pytest.fixture(autouse=True)
+def _clear_repo_caches():
+    """本文件会往工厂的 lru_cache 写入 db 后端结果；同一 pytest 进程里的
+    test_services.py 等也调用同一批工厂函数，不清缓存会把 db 实现泄漏过去
+    （无库环境直接连库失败）。"""
+    factory.get_uav_repository.cache_clear()
+    factory.get_flight_log_repository.cache_clear()
+    yield
+    factory.get_uav_repository.cache_clear()
+    factory.get_flight_log_repository.cache_clear()
 
 
 def test_default_backend_is_memory():
