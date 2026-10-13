@@ -1606,8 +1606,9 @@ from src.db.models import UAVModel
 from src.domain.enums import RiskLevel, UAVStatus
 from src.domain.models import (AdaptabilityResult, Position, RiskAssessment,
                                TaskAllocation, UAV)
-from src.repositories.db import (AllocationRunDbRepository, FlightLogDbRepository,
-                                 RiskRecordDbRepository, UAVDbRepository)
+from src.repositories.db import (AdaptabilityDbRepository, AllocationRunDbRepository,
+                                 FlightLogDbRepository, RiskRecordDbRepository,
+                                 UAVDbRepository)
 from src.utils.config import get_settings
 
 pytestmark = pytest.mark.integration
