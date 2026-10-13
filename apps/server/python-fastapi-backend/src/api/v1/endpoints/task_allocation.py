@@ -1,7 +1,10 @@
 """④ 任务分配 API"""
 
+import time
+
 from fastapi import APIRouter, HTTPException
 
+from src.api.v1.endpoints._persist import result_repo
 from src.domain.exceptions import AlgorithmNotFoundError
 from src.schemas.task_allocation import AllocateRequest, AllocateResponse
 from src.services import task_allocation as service
@@ -12,6 +15,7 @@ router = APIRouter()
 @router.post("/allocate", response_model=AllocateResponse)
 async def allocate_tasks(req: AllocateRequest) -> AllocateResponse:
     """提交任务分配请求"""
+    started = time.perf_counter()
     try:
         allocations, unassigned = service.allocate(
             uavs=req.uavs,
@@ -22,6 +26,18 @@ async def allocate_tasks(req: AllocateRequest) -> AllocateResponse:
     # 算法不存在、算法参数非法 — 均为客户端错误，须回传 400 而非 500
     except (AlgorithmNotFoundError, ValueError) as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+    repo = result_repo("allocation")
+    if repo is not None:
+        await repo.save_run(
+            algorithm=req.algorithm,
+            params=req.params,
+            uav_count=len(req.uavs),
+            task_count=len(req.tasks),
+            allocations=allocations,
+            unassigned_task_ids=unassigned,
+            duration_ms=(time.perf_counter() - started) * 1000,
+        )
 
     return AllocateResponse(
         allocations=allocations,

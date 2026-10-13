@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter, HTTPException
 
+from src.api.v1.endpoints._persist import result_repo
 from src.domain.exceptions import InsufficientResourceError
 from src.schemas.task_adaptability import (
     AdaptabilityRequest,
@@ -24,6 +25,11 @@ async def evaluate_adaptability(req: AdaptabilityRequest) -> AdaptabilityRespons
         raise HTTPException(status_code=404, detail=str(e))
 
     result = service.evaluate(uav, req.task, req.min_battery_reserve)
+
+    repo = result_repo("adaptability")
+    if repo is not None:
+        await repo.save_many([result])
+
     return AdaptabilityResponse(result=result)
 
 
@@ -31,5 +37,10 @@ async def evaluate_adaptability(req: AdaptabilityRequest) -> AdaptabilityRespons
 async def batch_evaluate(req: BatchAdaptabilityRequest) -> BatchAdaptabilityResponse:
     """批量评估多架 UAV 对同一任务的适配度"""
     results = service.evaluate_all(req.uavs, req.task, req.min_battery_reserve)
+
+    repo = result_repo("adaptability")
+    if repo is not None:
+        await repo.save_many(results)
+
     best = results[0].uav_id if results and results[0].capable else None
     return BatchAdaptabilityResponse(results=results, best_uav_id=best)

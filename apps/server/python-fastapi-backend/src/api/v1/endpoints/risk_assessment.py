@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter
 
+from src.api.v1.endpoints._persist import result_repo
 from src.schemas.risk_assessment import RiskAssessRequest, RiskAssessResponse
 from src.services import risk_assessment as service
 from src.utils.config import get_settings
@@ -18,6 +19,10 @@ async def assess_risk(req: RiskAssessRequest) -> RiskAssessResponse:
         obstacles=req.obstacles,
         weather_factor=req.weather_factor,
     )
+
+    repo = result_repo("risk")
+    if repo is not None:
+        await repo.save(assessment, weather_factor=req.weather_factor)
 
     settings = get_settings()
     pass_check = assessment.overall_score < settings.risk_collision_threshold
