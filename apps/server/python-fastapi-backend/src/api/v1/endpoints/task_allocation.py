@@ -1,12 +1,18 @@
 """④ 任务分配 API"""
 
 import time
+from uuid import UUID
 
 from fastapi import APIRouter, HTTPException
 
 from src.api.v1.endpoints._persist import result_repo
 from src.domain.exceptions import AlgorithmNotFoundError
-from src.schemas.task_allocation import AllocateRequest, AllocateResponse
+from src.schemas.task_allocation import (
+    AllocateRequest,
+    AllocateResponse,
+    AllocationRunDetailResponse,
+    AllocationRunListResponse,
+)
 from src.services import task_allocation as service
 
 router = APIRouter()
@@ -50,3 +56,28 @@ async def allocate_tasks(req: AllocateRequest) -> AllocateResponse:
 async def list_algorithms() -> list[dict]:
     """列出可用的任务分配算法"""
     return service.list_available_algorithms()
+
+
+@router.get("/runs", response_model=AllocationRunListResponse)
+async def list_allocation_runs(algorithm: str | None = None, limit: int = 50) -> AllocationRunListResponse:
+    """列出历史分配运行（按时间倒序）"""
+    repo = result_repo("allocation")
+    if repo is None:
+        raise HTTPException(status_code=503, detail="未启用数据库持久化，无法查询历史运行")
+    runs = await repo.list_runs(algorithm=algorithm, limit=limit)
+    # total 必须用独立 COUNT 查询：list_runs 内部有 SQL LIMIT，
+    # len(runs) 会把被截断的数量当总数（超过 limit 时错误）
+    total = await repo.count_runs(algorithm=algorithm)
+    return AllocationRunListResponse(runs=runs, total=total)
+
+
+@router.get("/runs/{run_id}", response_model=AllocationRunDetailResponse)
+async def get_allocation_run(run_id: UUID) -> AllocationRunDetailResponse:
+    """查询单次分配运行的明细"""
+    repo = result_repo("allocation")
+    if repo is None:
+        raise HTTPException(status_code=503, detail="未启用数据库持久化，无法查询历史运行")
+    detail = await repo.get_run(run_id)
+    if detail is None:
+        raise HTTPException(status_code=404, detail=f"分配运行 {run_id} 不存在")
+    return AllocationRunDetailResponse(**detail)

@@ -2,7 +2,7 @@
 
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from src.db.models.allocation import AllocationItemModel, AllocationRunModel
@@ -56,6 +56,14 @@ class AllocationRunDbRepository:
                 stmt = stmt.where(AllocationRunModel.algorithm == algorithm)
             rows = (await session.execute(stmt)).scalars().all()
         return [self._summary(r) for r in rows]
+
+    async def count_runs(self, algorithm: str | None = None) -> int:
+        """匹配条件的 run 总数（不受 limit 影响，供分页 total 使用）"""
+        async with self._session_factory() as session:
+            stmt = select(func.count()).select_from(AllocationRunModel)
+            if algorithm:
+                stmt = stmt.where(AllocationRunModel.algorithm == algorithm)
+            return (await session.execute(stmt)).scalar_one()
 
     async def get_run(self, run_id: uuid.UUID) -> dict | None:
         """返回 run 摘要 + 明细"""
