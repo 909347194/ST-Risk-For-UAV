@@ -537,7 +537,7 @@ ts 用浮点而非时间类型：领域模型 UAVHealthSnapshot.timestamp 是仿
 时间戳（秒），不是墙钟时间；改用 TIMESTAMPTZ 会丢掉仿真语义。
 """
 
-from sqlalchemy import Column, String, Boolean, Float, DateTime, func
+from sqlalchemy import Column, String, Boolean, Integer, Float, DateTime, func
 from sqlalchemy.dialects.postgresql import JSONB
 from geoalchemy2 import Geometry
 
