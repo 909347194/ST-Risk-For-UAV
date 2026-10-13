@@ -70,9 +70,10 @@ async def lifespan(application: FastAPI):
 
     # ── shutdown 阶段 ──
     _log("[*] Closing database connections...")
-    # 在此添加资源清理逻辑，例如:
-    # await database.disconnect()
-    # await redis_client.close()
+    if settings.repository_backend == "db":
+        from src.db.engine import engine
+        await engine.dispose()
+        _log("[OK] Database engine disposed.")
     _log("[OK] Cleanup done. Server stopped cleanly.")
 
 

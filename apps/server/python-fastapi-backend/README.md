@@ -16,31 +16,29 @@
 
 ## 快速开始
 
+以下命令均在 `apps/server/python-fastapi-backend/` 目录下执行（`src.main` 使用绝对导入 `from src...`，在别的目录启动会 `ModuleNotFoundError`）。假定已激活虚拟环境（Windows: `.venv\Scripts\activate`；POSIX: `source .venv/bin/activate`）；未激活时，把 `uvicorn` / `pytest` / `ruff` / `alembic` 换成 `.venv/Scripts/python.exe -m ...`（Windows）或 `.venv/bin/python -m ...`（POSIX）。
+
 ```bash
-# 安装依赖
-uv sync
+# 安装运行时 + 开发依赖（含 pytest-asyncio），-e 可编辑安装
+.venv/Scripts/python.exe -m pip install -e ".[dev]"
+# 或（uv 直接装进当前 venv）：
+uv pip install -e ".[dev]"
+# 不要用 uv sync：uv.lock 未入库，且 [project.scripts] 的入口点不会被安装
 
-# 安装开发依赖
-uv sync --extra dev
-
-# 数据库迁移
-alembic upgrade head
-
-# 启动服务
-uv run dev              # 开发模式（reload）
-uv run start            # 生产模式
+# 启动服务（开发模式，reload）
+uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
 # 或在 monorepo 根目录
 pnpm run dev:py
 
 # 测试
-uv run test
+pytest tests/ -q
 
 # Lint & 格式化
-uv run lint
-uv run format
+ruff check src/
+ruff format src/
 ```
 
-服务启动后访问 http://localhost:8000/docs 查看 Swagger 文档。
+数据库迁移见下方「数据库」一节。服务启动后访问 http://localhost:8000/docs 查看 Swagger 文档。
 
 ## 架构
 
@@ -242,10 +240,12 @@ src/
 
 ## ORM 模型
 
+共 10 张表，表结构全部由 Alembic 迁移管理（见下方「数据库」）。
+
 ```mermaid
 erDiagram
     UAVModel {
-        string id PK
+        string id PK "表 uavs；写入方：将来 Node"
         geometry position "POINT_Z (PostGIS)"
         float speed
         float max_payload
@@ -253,22 +253,87 @@ erDiagram
         string status
     }
     TaskModel {
-        string id PK
+        string id PK "表 tasks；写入方：将来 Node"
         geometry position "POINT_Z (PostGIS)"
         string priority
         float payload_weight
         float time_limit
+        string status
+    }
+    AdaptabilityResultModel {
+        integer id PK "表 adaptability_results；写入方：Python"
+        string uav_id
+        string task_id
+        boolean capable
+        float score
+        jsonb reasons
+    }
+    RiskRecordModel {
+        integer id PK "表 risk_records；写入方：Python"
+        string uav_id
+        string task_id
+        string risk_level
+        float collision_risk
+        float weather_risk
+        float battery_risk
+        float overall_score
+        jsonb details
+    }
+    PathPlanModel {
+        integer id PK "表 path_plans；写入方：Python"
+        string uav_id
+        string task_id
+        string algorithm
+        jsonb waypoints
+        float total_distance
+        float estimated_time
+    }
+    AllocationRunModel {
+        uuid id PK "表 allocation_runs；写入方：Python"
+        string algorithm
+        jsonb params
+        integer assigned_count
+        integer unassigned_count
+        float duration_ms
+    }
+    AllocationItemModel {
+        integer id PK "表 allocation_items；写入方：Python"
+        uuid run_id FK
+        string uav_id
+        string task_id
+        float estimated_cost
+    }
+    FlightSnapshotModel {
+        integer id PK "表 flight_snapshots；写入方：Python"
+        string uav_id
+        float ts "仿真时间戳（秒）"
+        geometry position "POINT_Z (PostGIS)"
+        float battery_remaining
+        boolean is_anomaly
+        jsonb anomaly_reasons
+    }
+    FlightAlertModel {
+        integer id PK "表 flight_alerts；写入方：Python"
+        string uav_id
+        string message
     }
     FlightLogModel {
-        string id PK
-        string uav_id FK
+        string id PK "表 flight_logs；写入方：Python（暂无写入方）"
+        string uav_id "逻辑引用 uavs.id"
         geometry track "LINESTRING Z (PostGIS)"
-        vector embedding "pgvector 128维"
+        vector embedding "pgvector 128 维"
         datetime start_time
         datetime end_time
         float total_distance
     }
+
+    AllocationRunModel ||--o{ AllocationItemModel : "run_id"
 ```
+
+- `uavs`：写入方是**将来接入的 Node 后端**。Node 尚未接库，本轮暂由 Python 的 `/uavs` 端点代写，Node 就绪后 Python 退化为只读。
+- `tasks`：写入方同样是**将来接入的 Node 后端**，Python 目前只读、无写入方。
+- 其余 8 张表：**Python 写入**。其中 `flight_logs` 当前暂无写入方（表与列已建好，等「飞行会话」概念落地再接入）。
+- `uav_id` / `task_id` 列目前是逻辑引用，除 `allocation_items.run_id` 外没有数据库外键约束。
 
 ## 内置算法
 
@@ -405,8 +470,9 @@ def test_evaluate_capable():
 ### Step 8 — 验证
 
 ```bash
-uv run pytest tests/test_task_adaptability.py -v
-uv run dev  # 然后访问 http://localhost:8000/docs
+pytest tests/test_task_adaptability.py -v
+uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
+# 然后访问 http://localhost:8000/docs
 ```
 
 ### 涉及文件
@@ -448,14 +514,42 @@ uv run dev  # 然后访问 http://localhost:8000/docs
 | `UAV_RISK_BATTERY_THRESHOLD` | `0.8` | 电量风险阈值 |
 | `UAV_MIN_BATTERY_RESERVE` | `0.2` | 最低电量保留比例 |
 
+`.env` 读取顺序：仓库根 `.env` 与后端目录 `.env` 都会被加载，**后端目录的 `.env` 优先**。
+
+## 持久化开关
+
+| 变量 | 取值 | 默认 | 说明 |
+|------|------|------|------|
+| `UAV_REPOSITORY_BACKEND` | `memory` / `db` | `memory` | `memory` = 内存仓储，无需数据库即可启动；`db` = PostgreSQL（需先建库并迁移） |
+| `UAV_PERSIST_RESULTS` | `on` / `off`（布尔，也接受 `true` / `false`） | `on` | 算法结果是否写入结果表；`off` 时四个算法端点（适配评估 / 风险评估 / 航线规划 / 任务分配）跳过写库 |
+
+- `UAV_PERSIST_RESULTS` 只影响结果表（`allocation_runs` / `allocation_items` / `adaptability_results` / `risk_records` / `path_plans`）；`memory` 模式本身就不落库，故该开关在 `memory` 下无额外效果。
+- `uavs` 与监控快照的写入不受 `UAV_PERSIST_RESULTS` 影响，随 `UAV_REPOSITORY_BACKEND` 切换走内存或 PostgreSQL。
+
 ## 数据库
+
+Python 后端连库使用异步 DSN，配置项为 `UAV_DATABASE_URL`（`postgresql+asyncpg://...`）。Alembic 迁移与运行时读取同一份配置（`alembic/env.py` 调 `get_settings()`），不会出现「应用连 A 库、迁移连 B 库」。
+
+```bash
+# 1. 先建库（示例：本机 PostgreSQL；库名按 UAV_DATABASE_URL 中的名称）
+createdb -U postgres st_risk
+# 库需要 PostGIS + pgvector 扩展；在仓库根目录执行：
+psql -U postgres -d st_risk -f infra/db/init.sql
+# （Docker 环境当前镜像不含 PostGIS，限制见该文件头部说明）
+
+# 2. 在仓库根 .env 或后端目录 .env 中设置连接串：
+#    UAV_DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/st_risk
+#    并把 UAV_REPOSITORY_BACKEND 设为 db
+
+# 3. 再迁移到最新版本
+alembic upgrade head
+```
+
+日常迁移操作：
 
 ```bash
 # 生成迁移脚本
 alembic revision --autogenerate -m "描述"
-
-# 执行迁移
-alembic upgrade head
 
 # 回滚一步
 alembic downgrade -1
