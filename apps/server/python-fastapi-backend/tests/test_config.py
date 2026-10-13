@@ -13,13 +13,15 @@ def test_env_file_path_is_absolute_and_cwd_independent():
         assert Path(f).is_absolute(), f"{f} 不是绝对路径"
 
 
-def test_repository_backend_defaults_to_memory():
+def test_repository_backend_defaults_to_memory(monkeypatch):
     """默认必须是内存实现 —— 无库环境下服务要能起来"""
-    assert Settings().repository_backend == "memory"
+    monkeypatch.delenv("UAV_REPOSITORY_BACKEND", raising=False)
+    assert Settings(_env_file=None).repository_backend == "memory"
 
 
-def test_persist_results_defaults_to_true():
-    assert Settings().persist_results is True
+def test_persist_results_defaults_to_true(monkeypatch):
+    monkeypatch.delenv("UAV_PERSIST_RESULTS", raising=False)
+    assert Settings(_env_file=None).persist_results is True
 
 
 def test_backend_root_env_is_last_priority():

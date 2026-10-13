@@ -1,23 +1,21 @@
 """⑥ 飞行监控模块"""
 
 from src.domain.models import UAVHealthSnapshot
-from src.repositories.flight_log_repo import FlightLogRepository
-
-_repo = FlightLogRepository()
+from src.repositories import factory
 
 
-def get_repository() -> FlightLogRepository:
-    return _repo
+def get_repository():
+    return factory.get_flight_log_repository()
 
 
 async def record_snapshot(snapshot: UAVHealthSnapshot) -> UAVHealthSnapshot:
-    await _repo.append_snapshot(snapshot)
+    await get_repository().append_snapshot(snapshot)
     anomalies = detect_anomalies(snapshot)
     if anomalies:
         snapshot.is_anomaly = True
         snapshot.anomaly_reasons = anomalies
         for a in anomalies:
-            await _repo.append_alert(snapshot.uav_id, a)
+            await get_repository().append_alert(snapshot.uav_id, a)
     return snapshot
 
 
@@ -35,16 +33,16 @@ def detect_anomalies(snapshot: UAVHealthSnapshot) -> list[str]:
 
 
 async def get_track(uav_id: str, limit: int = 100) -> list[UAVHealthSnapshot]:
-    return await _repo.get_track(uav_id, limit)
+    return await get_repository().get_track(uav_id, limit)
 
 
 async def get_alerts(uav_id: str) -> list[str]:
-    return await _repo.get_alerts(uav_id)
+    return await get_repository().get_alerts(uav_id)
 
 
 async def clear_alerts(uav_id: str) -> None:
-    await _repo.clear_alerts(uav_id)
+    await get_repository().clear_alerts(uav_id)
 
 
 async def get_active_count() -> int:
-    return len(await _repo.get_active_uav_ids())
+    return len(await get_repository().get_active_uav_ids())

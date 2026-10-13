@@ -3,21 +3,19 @@
 from src.domain.enums import UAVStatus
 from src.domain.exceptions import InsufficientResourceError
 from src.domain.models import UAV, Position, UAVHealthSnapshot
-from src.repositories.uav_repo import UAVRepository
-
-_repo = UAVRepository()
+from src.repositories import factory
 
 
-def get_repository() -> UAVRepository:
-    return _repo
+def get_repository():
+    return factory.get_uav_repository()
 
 
 async def register_uav(uav: UAV) -> UAV:
-    return await _repo.save(uav)
+    return await get_repository().save(uav)
 
 
 async def get_uav(uav_id: str) -> UAV:
-    uav = await _repo.find_by_id(uav_id)
+    uav = await get_repository().find_by_id(uav_id)
     if uav is None:
         raise InsufficientResourceError(f"无人机 {uav_id} 不存在")
     return uav
@@ -25,24 +23,24 @@ async def get_uav(uav_id: str) -> UAV:
 
 async def list_uavs(status: UAVStatus | None = None) -> list[UAV]:
     if status:
-        return await _repo.find_by_status(status)
-    return await _repo.find_all()
+        return await get_repository().find_by_status(status)
+    return await get_repository().find_all()
 
 
 async def update_uav_status(uav_id: str, status: UAVStatus) -> UAV:
-    uav = await _repo.update_status(uav_id, status)
+    uav = await get_repository().update_status(uav_id, status)
     if uav is None:
         raise InsufficientResourceError(f"无人机 {uav_id} 不存在")
     return uav
 
 
 async def remove_uav(uav_id: str) -> None:
-    if not await _repo.delete(uav_id):
+    if not await get_repository().delete(uav_id):
         raise InsufficientResourceError(f"无人机 {uav_id} 不存在")
 
 
 async def update_position(uav_id: str, position: Position) -> UAV:
-    uav = await _repo.update_position(uav_id, position.x, position.y, position.z)
+    uav = await get_repository().update_position(uav_id, position.x, position.y, position.z)
     if uav is None:
         raise InsufficientResourceError(f"无人机 {uav_id} 不存在")
     return uav
