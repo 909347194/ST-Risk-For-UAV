@@ -1,4 +1,11 @@
-"""ORM 模型 — 飞行轨迹表（PostGIS 线几何 + pgvector）"""
+"""ORM 模型 — 飞行轨迹表（PostGIS 线几何 + pgvector）
+
+表归属：**Python 写入，但当前暂无写入方**。
+
+它表示「一次飞行会话」的聚合（轨迹线 + 特征向量 + 起止时间 + 总距离），
+而现有代码只有逐点快照（flight_snapshots），尚不存在「飞行会话」这一
+边界。先把表和列建好，等会话概念落地再接入写入逻辑。
+"""
 
 from sqlalchemy import Column, String, Float, DateTime
 from geoalchemy2 import Geometry
