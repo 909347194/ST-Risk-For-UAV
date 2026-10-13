@@ -1,14 +1,9 @@
 """Repository 基类 — 定义通用 CRUD 接口"""
 
-from typing import Generic, TypeVar
-
 from pydantic import BaseModel
 
-T = TypeVar("T", bound=BaseModel)
-ID = TypeVar("ID")
 
-
-class BaseRepository(Generic[T, ID]):
+class BaseRepository[T: BaseModel, ID]:
     """
     通用仓储接口。
 
@@ -16,46 +11,46 @@ class BaseRepository(Generic[T, ID]):
     当前提供 InMemory 默认实现。
     """
 
-    def save(self, entity: T) -> T:
+    async def save(self, entity: T) -> T:
         raise NotImplementedError
 
-    def find_by_id(self, entity_id: ID) -> T | None:
+    async def find_by_id(self, entity_id: ID) -> T | None:
         raise NotImplementedError
 
-    def find_all(self) -> list[T]:
+    async def find_all(self) -> list[T]:
         raise NotImplementedError
 
-    def delete(self, entity_id: ID) -> bool:
+    async def delete(self, entity_id: ID) -> bool:
         raise NotImplementedError
 
-    def exists(self, entity_id: ID) -> bool:
+    async def exists(self, entity_id: ID) -> bool:
         raise NotImplementedError
 
 
-class InMemoryRepository(BaseRepository[T, ID]):
+class InMemoryRepository[T: BaseModel, ID](BaseRepository[T, ID]):
     """基于 dict 的内存仓储，通用 CRUD"""
 
     def __init__(self) -> None:
         self._store: dict[ID, T] = {}
 
-    def save(self, entity: T) -> T:
+    async def save(self, entity: T) -> T:
         entity_id = self._extract_id(entity)
         self._store[entity_id] = entity
         return entity
 
-    def find_by_id(self, entity_id: ID) -> T | None:
+    async def find_by_id(self, entity_id: ID) -> T | None:
         return self._store.get(entity_id)
 
-    def find_all(self) -> list[T]:
+    async def find_all(self) -> list[T]:
         return list(self._store.values())
 
-    def delete(self, entity_id: ID) -> bool:
+    async def delete(self, entity_id: ID) -> bool:
         if entity_id in self._store:
             del self._store[entity_id]
             return True
         return False
 
-    def exists(self, entity_id: ID) -> bool:
+    async def exists(self, entity_id: ID) -> bool:
         return entity_id in self._store
 
     def count(self) -> int:

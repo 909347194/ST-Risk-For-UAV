@@ -10,14 +10,14 @@ def get_repository() -> FlightLogRepository:
     return _repo
 
 
-def record_snapshot(snapshot: UAVHealthSnapshot) -> UAVHealthSnapshot:
-    _repo.append_snapshot(snapshot)
+async def record_snapshot(snapshot: UAVHealthSnapshot) -> UAVHealthSnapshot:
+    await _repo.append_snapshot(snapshot)
     anomalies = detect_anomalies(snapshot)
     if anomalies:
         snapshot.is_anomaly = True
         snapshot.anomaly_reasons = anomalies
         for a in anomalies:
-            _repo.append_alert(snapshot.uav_id, a)
+            await _repo.append_alert(snapshot.uav_id, a)
     return snapshot
 
 
@@ -34,17 +34,17 @@ def detect_anomalies(snapshot: UAVHealthSnapshot) -> list[str]:
     return anomalies
 
 
-def get_track(uav_id: str, limit: int = 100) -> list[UAVHealthSnapshot]:
-    return _repo.get_track(uav_id, limit)
+async def get_track(uav_id: str, limit: int = 100) -> list[UAVHealthSnapshot]:
+    return await _repo.get_track(uav_id, limit)
 
 
-def get_alerts(uav_id: str) -> list[str]:
-    return _repo.get_alerts(uav_id)
+async def get_alerts(uav_id: str) -> list[str]:
+    return await _repo.get_alerts(uav_id)
 
 
-def clear_alerts(uav_id: str) -> None:
-    _repo.clear_alerts(uav_id)
+async def clear_alerts(uav_id: str) -> None:
+    await _repo.clear_alerts(uav_id)
 
 
-def get_active_count() -> int:
-    return len(_repo.get_active_uav_ids())
+async def get_active_count() -> int:
+    return len(await _repo.get_active_uav_ids())

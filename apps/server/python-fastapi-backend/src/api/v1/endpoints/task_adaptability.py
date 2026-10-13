@@ -5,8 +5,8 @@ from fastapi import APIRouter, HTTPException
 from src.domain.exceptions import InsufficientResourceError
 from src.schemas.task_adaptability import (
     AdaptabilityRequest,
-    BatchAdaptabilityRequest,
     AdaptabilityResponse,
+    BatchAdaptabilityRequest,
     BatchAdaptabilityResponse,
 )
 from src.services import task_adaptability as service
@@ -19,7 +19,7 @@ router = APIRouter()
 async def evaluate_adaptability(req: AdaptabilityRequest) -> AdaptabilityResponse:
     """评估单架 UAV 对任务的适配度"""
     try:
-        uav = uav_resource.get_uav(req.uav_id)
+        uav = await uav_resource.get_uav(req.uav_id)
     except InsufficientResourceError as e:
         raise HTTPException(status_code=404, detail=str(e))
 

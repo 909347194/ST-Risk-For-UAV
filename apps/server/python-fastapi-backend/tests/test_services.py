@@ -1,12 +1,16 @@
 """新增业务模块测试"""
 
-from src.domain.models import UAV, Task, Position, Obstacle
-from src.domain.enums import UAVStatus, RiskLevel
-from src.services.uav_resource import register_uav, get_uav, list_uavs, update_uav_status
-from src.services.task_adaptability import evaluate, evaluate_all
+from src.domain.enums import RiskLevel, UAVStatus
+from src.domain.models import UAV, Obstacle, Position, Task, UAVHealthSnapshot
+from src.services.flight_monitoring import get_track, record_snapshot
 from src.services.risk_assessment import assess
-from src.services.flight_monitoring import record_snapshot, get_track
-from src.domain.models import UAVHealthSnapshot
+from src.services.task_adaptability import evaluate
+from src.services.uav_resource import (
+    get_uav,
+    list_uavs,
+    register_uav,
+    update_uav_status,
+)
 
 
 def _make_uav(uid: str = "uav-1") -> UAV:
@@ -19,18 +23,18 @@ def _make_task(tid: str = "task-1") -> Task:
 
 # ── ① 资源管理 ──
 
-def test_register_and_get():
+async def test_register_and_get():
     uav = _make_uav()
-    register_uav(uav)
-    result = get_uav("uav-1")
+    await register_uav(uav)
+    result = await get_uav("uav-1")
     assert result.id == "uav-1"
 
 
-def test_list_by_status():
-    register_uav(_make_uav("a"))
-    register_uav(_make_uav("b"))
-    update_uav_status("b", UAVStatus.IN_FLIGHT)
-    idle = list_uavs(UAVStatus.IDLE)
+async def test_list_by_status():
+    await register_uav(_make_uav("a"))
+    await register_uav(_make_uav("b"))
+    await update_uav_status("b", UAVStatus.IN_FLIGHT)
+    idle = await list_uavs(UAVStatus.IDLE)
     assert all(u.status == UAVStatus.IDLE for u in idle)
 
 
@@ -71,13 +75,13 @@ def test_risk_with_obstacle():
 
 # ── ⑥ 飞行监控 ──
 
-def test_snapshot_record():
+async def test_snapshot_record():
     snap = UAVHealthSnapshot(
         uav_id="uav-1", position=Position(x=10, y=20, z=50),
         battery_remaining=80.0, speed=5.0, heading=90.0, timestamp=1.0,
     )
-    result = record_snapshot(snap)
+    result = await record_snapshot(snap)
     assert result.uav_id == "uav-1"
 
-    track = get_track("uav-1")
+    track = await get_track("uav-1")
     assert len(track) >= 1

@@ -1,7 +1,6 @@
 """⑥ 飞行监控仓储 — 轨迹日志 + 告警记录"""
 
 from src.domain.models import UAVHealthSnapshot
-from src.repositories.base import InMemoryRepository
 
 
 class FlightLogRepository:
@@ -17,33 +16,33 @@ class FlightLogRepository:
 
     # ── 轨迹 ──
 
-    def append_snapshot(self, snapshot: UAVHealthSnapshot) -> None:
+    async def append_snapshot(self, snapshot: UAVHealthSnapshot) -> None:
         self._tracks.setdefault(snapshot.uav_id, []).append(snapshot)
 
-    def get_track(self, uav_id: str, limit: int = 100) -> list[UAVHealthSnapshot]:
+    async def get_track(self, uav_id: str, limit: int = 100) -> list[UAVHealthSnapshot]:
         track = self._tracks.get(uav_id, [])
         return track[-limit:]
 
-    def get_latest(self, uav_id: str) -> UAVHealthSnapshot | None:
+    async def get_latest(self, uav_id: str) -> UAVHealthSnapshot | None:
         track = self._tracks.get(uav_id)
         return track[-1] if track else None
 
-    def get_active_uav_ids(self) -> list[str]:
+    async def get_active_uav_ids(self) -> list[str]:
         return list(self._tracks.keys())
 
     # ── 告警 ──
 
-    def append_alert(self, uav_id: str, alert: str) -> None:
+    async def append_alert(self, uav_id: str, alert: str) -> None:
         self._alerts.setdefault(uav_id, []).append(alert)
 
-    def get_alerts(self, uav_id: str) -> list[str]:
+    async def get_alerts(self, uav_id: str) -> list[str]:
         return self._alerts.get(uav_id, [])
 
-    def clear_alerts(self, uav_id: str) -> None:
+    async def clear_alerts(self, uav_id: str) -> None:
         self._alerts.pop(uav_id, None)
 
     # ── 管理 ──
 
-    def clear(self) -> None:
+    async def clear(self) -> None:
         self._tracks.clear()
         self._alerts.clear()

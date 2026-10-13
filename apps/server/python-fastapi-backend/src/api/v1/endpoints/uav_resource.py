@@ -2,15 +2,15 @@
 
 from fastapi import APIRouter, HTTPException
 
-from src.domain.models import UAV, Position
 from src.domain.enums import UAVStatus
 from src.domain.exceptions import InsufficientResourceError
+from src.domain.models import UAV, Position
 from src.schemas.uav_resource import (
     UAVCreateRequest,
-    UAVStatusUpdateRequest,
-    UAVResponse,
     UAVListResponse,
+    UAVResponse,
     UAVSnapshotResponse,
+    UAVStatusUpdateRequest,
 )
 from src.services import uav_resource as service
 
@@ -27,7 +27,7 @@ async def register_uav(req: UAVCreateRequest) -> UAVResponse:
         max_payload=req.max_payload,
         battery=req.battery,
     )
-    return UAVResponse(uav=service.register_uav(uav))
+    return UAVResponse(uav=await service.register_uav(uav))
 
 
 @router.get("", response_model=UAVListResponse)
@@ -38,7 +38,7 @@ async def list_uavs(status: str | None = None) -> UAVListResponse:
     except ValueError as e:  # 非法枚举值 — 客户端错误
         raise HTTPException(status_code=400, detail=str(e))
 
-    uavs = service.list_uavs(uav_status)
+    uavs = await service.list_uavs(uav_status)
     return UAVListResponse(uavs=uavs, total=len(uavs))
 
 
@@ -46,7 +46,7 @@ async def list_uavs(status: str | None = None) -> UAVListResponse:
 async def get_uav(uav_id: str) -> UAVResponse:
     """查询单架无人机"""
     try:
-        return UAVResponse(uav=service.get_uav(uav_id))
+        return UAVResponse(uav=await service.get_uav(uav_id))
     except InsufficientResourceError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -56,7 +56,7 @@ async def update_status(uav_id: str, req: UAVStatusUpdateRequest) -> UAVResponse
     """更新无人机状态"""
     try:
         status = UAVStatus(req.status)
-        return UAVResponse(uav=service.update_uav_status(uav_id, status))
+        return UAVResponse(uav=await service.update_uav_status(uav_id, status))
     except (InsufficientResourceError, ValueError) as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -65,7 +65,7 @@ async def update_status(uav_id: str, req: UAVStatusUpdateRequest) -> UAVResponse
 async def remove_uav(uav_id: str) -> None:
     """移除无人机"""
     try:
-        service.remove_uav(uav_id)
+        await service.remove_uav(uav_id)
     except InsufficientResourceError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -74,6 +74,6 @@ async def remove_uav(uav_id: str) -> None:
 async def get_snapshot(uav_id: str) -> UAVSnapshotResponse:
     """获取健康快照"""
     try:
-        return UAVSnapshotResponse(snapshot=service.get_snapshot(uav_id))
+        return UAVSnapshotResponse(snapshot=await service.get_snapshot(uav_id))
     except InsufficientResourceError as e:
         raise HTTPException(status_code=404, detail=str(e))

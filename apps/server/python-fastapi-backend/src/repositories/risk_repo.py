@@ -1,4 +1,8 @@
-"""③ 飞行风险评估仓储 — 评估结果缓存（可选）"""
+"""③ 飞行风险评估仓储 — 评估结果缓存（可选）
+
+当前无调用方：对应的评估模块（risk_assessment）是无状态的，
+本仓储仅作为接口对齐与后续持久化（Task 10~12）的预留。
+"""
 
 from src.domain.models import RiskAssessment
 from src.repositories.base import InMemoryRepository
@@ -10,9 +14,9 @@ class RiskAssessmentRepository(InMemoryRepository[RiskAssessment, str]):
     def _extract_id(self, entity: RiskAssessment) -> str:
         return f"{entity.uav_id}:{entity.task_id}"
 
-    def find_by_uav(self, uav_id: str) -> list[RiskAssessment]:
+    async def find_by_uav(self, uav_id: str) -> list[RiskAssessment]:
         return [r for r in self._store.values() if r.uav_id == uav_id]
 
-    def find_high_risk(self) -> list[RiskAssessment]:
+    async def find_high_risk(self) -> list[RiskAssessment]:
         """返回高风险及以上的评估"""
         return [r for r in self._store.values() if r.risk_level.value in ("high", "critical")]
