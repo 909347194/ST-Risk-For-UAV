@@ -153,7 +153,7 @@ git commit -m "test(python-db): 引入 pytest-asyncio 与 pytest 配置"
 
 from pathlib import Path
 
-from src.utils.config import Settings, get_settings
+from src.utils.config import Settings
 
 
 def test_env_file_path_is_absolute_and_cwd_independent():
@@ -244,6 +244,8 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     return Settings()
 ```
+
+同时把 `pyproject.toml` 里 `pydantic-settings` 的依赖下限从 `>=2.0` 提到 `>=2.4`：`env_file` 接受路径元组需要 2.4+，旧下限会允许解析出 2.0~2.3 的坏版本。
 
 - [ ] **Step 4: 运行确认通过**
 
