@@ -747,8 +747,10 @@ else:
 
 - [ ] **Step 4: 验证 Alembic 能加载模型元数据（不连库）**
 
-Run: `.venv/Scripts/python.exe -m alembic -x nothing=1 heads 2>&1 | head -5`
-Expected: 返回空或 `No heads`，**不应**出现 `ModuleNotFoundError` 或 `NameError`。若报 `sqlalchemy.url` 相关错误，说明第 2 步的 URL 没留空
+Run: `.venv/Scripts/python.exe -m alembic upgrade head --sql > /dev/null && echo ENV_OK`
+Expected: `ENV_OK`（离线模式会执行 env.py 但不连库；versions/ 此时为空，正常不输出 SQL）。**不应**出现 `ModuleNotFoundError` 或 `NameError`。若报 `sqlalchemy.url` 相关错误，说明第 2 步的 URL 没留空
+
+> 注意不要用 `alembic heads` 做这个验证 —— 它只读脚本目录，不执行 env.py，验不到导入链。
 
 - [ ] **Step 5: 提交**
 
@@ -1082,10 +1084,14 @@ def uav_to_model(uav: UAV) -> UAVModel:
 
 
 def uav_to_domain(row) -> UAV:
-    """row 需提供 id / position(WKT 文本) / speed / max_payload / battery / status"""
+    """row 需提供 id / position_wkt(WKT 文本) / speed / max_payload / battery / status
+
+    position 列由查询里的 ST_AsText(...) 别名 position_wkt 提供 ——
+    不能直接读 row.position，那是 WKBElement 而非文本。
+    """
     return UAV(
         id=row.id,
-        position=wkt_to_position(row.position),
+        position=wkt_to_position(row.position_wkt),
         speed=row.speed,
         max_payload=row.max_payload,
         battery=row.battery,
@@ -1109,9 +1115,11 @@ def snapshot_to_model(snap: UAVHealthSnapshot) -> FlightSnapshotModel:
 
 
 def snapshot_to_domain(row) -> UAVHealthSnapshot:
+    """row 需提供 uav_id / ts / battery_remaining / speed / heading /
+    is_anomaly / anomaly_reasons / position_wkt(WKT 文本)"""
     return UAVHealthSnapshot(
         uav_id=row.uav_id,
-        position=wkt_to_position(row.position),
+        position=wkt_to_position(row.position_wkt),
         battery_remaining=row.battery_remaining,
         speed=row.speed,
         heading=row.heading,
@@ -1232,18 +1240,6 @@ from src.domain.models import Position, UAV
 from src.repositories import mappers
 
 
-def _to_domain(row: UAVModel) -> UAV:
-    """从 ORM 行取几何列的 WKT 文本，再交给映射层"""
-    return UAV(
-        id=row.id,
-        position=mappers.wkt_to_position(row.position_wkt),
-        speed=row.speed,
-        max_payload=row.max_payload,
-        battery=row.battery,
-        status=UAVStatus(row.status),
-    )
-
-
 class UAVDbRepository:
     """无人机仓储 —— 表归属标注见 src/db/models/uav.py（将来写权限归 Node）"""
 
@@ -1252,7 +1248,20 @@ class UAVDbRepository:
 
     @staticmethod
     def _select():
-        return select(UAVModel, func.ST_AsText(UAVModel.position).label("position_wkt"))
+        """逐列显式选取 + ST_AsText 别名。
+
+        必须显式列：select(Model, label) 的结果行只能按 "Model"/"label"
+        两个键取属性，row.id / row.position_wkt 会 AttributeError。
+        显式列后行对象按列名暴露属性，mappers.uav_to_domain(row) 可直接用。
+        """
+        return select(
+            UAVModel.id,
+            UAVModel.speed,
+            UAVModel.max_payload,
+            UAVModel.battery,
+            UAVModel.status,
+            func.ST_AsText(UAVModel.position).label("position_wkt"),
+        )
 
     async def save(self, uav: UAV) -> UAV:
         async with self._session_factory() as session:
@@ -1265,19 +1274,19 @@ class UAVDbRepository:
         async with self._session_factory() as session:
             row = (await session.execute(
                 self._select().where(UAVModel.id == uav_id))).first()
-        return _to_domain(row) if row else None
+        return mappers.uav_to_domain(row) if row else None
 
     async def find_all(self) -> list[UAV]:
         async with self._session_factory() as session:
             rows = (await session.execute(self._select().order_by(UAVModel.id))).all()
-        return [_to_domain(r) for r in rows]
+        return [mappers.uav_to_domain(r) for r in rows]
 
     async def find_by_status(self, status: UAVStatus) -> list[UAV]:
         async with self._session_factory() as session:
             rows = (await session.execute(
                 self._select().where(UAVModel.status == status.value)
                 .order_by(UAVModel.id))).all()
-        return [_to_domain(r) for r in rows]
+        return [mappers.uav_to_domain(r) for r in rows]
 
     async def delete(self, uav_id: str) -> bool:
         async with self._session_factory() as session:
@@ -1306,8 +1315,6 @@ class UAVDbRepository:
             await session.commit()
         return await self.find_by_id(uav_id)
 ```
-
-> **实现提示**：`_select()` 用 `ST_AsText(...)` 把几何列取成 WKT 文本，SQLAlchemy 会把它放在结果行的 `position_wkt` 上。若运行时发现 `row.position_wkt` 取不到，改用 `select(UAVModel.id, func.ST_AsText(...).label('position_wkt'), ...)` 逐列显式选取，其余列名与 `_to_domain` 保持一致。
 
 - [ ] **Step 3: 建 monitoring_repo.py**
 
@@ -1339,9 +1346,18 @@ class FlightLogDbRepository:
                     .where(FlightSnapshotModel.uav_id == uav_id)
                     .order_by(FlightSnapshotModel.ts.desc(), FlightSnapshotModel.id.desc())
                     .limit(limit).subquery())
+            # 逐列显式选取：行对象按列名暴露属性，snapshot_to_domain 直接消费
             rows = (await session.execute(
-                select(FlightSnapshotModel,
-                       func.ST_AsText(FlightSnapshotModel.position).label("position_wkt"))
+                select(
+                    FlightSnapshotModel.uav_id,
+                    FlightSnapshotModel.ts,
+                    FlightSnapshotModel.battery_remaining,
+                    FlightSnapshotModel.speed,
+                    FlightSnapshotModel.heading,
+                    FlightSnapshotModel.is_anomaly,
+                    FlightSnapshotModel.anomaly_reasons,
+                    func.ST_AsText(FlightSnapshotModel.position).label("position_wkt"),
+                )
                 .where(FlightSnapshotModel.id.in_(select(subq.c.id)))
                 .order_by(FlightSnapshotModel.ts.asc(), FlightSnapshotModel.id.asc())
             )).all()
@@ -1768,6 +1784,8 @@ def test_default_backend_is_memory():
 
 def test_db_backend_returns_sqlalchemy_repository(monkeypatch):
     monkeypatch.setattr(factory.get_settings(), "repository_backend", "db", raising=False)
+    # 上一个用例已把 memory 结果写进 lru_cache，不清缓存本用例会拿到旧结果
+    factory.get_uav_repository.cache_clear()
     repo = factory.get_uav_repository()
     assert repo.__class__.__name__ == "UAVDbRepository"
 
