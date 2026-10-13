@@ -1447,6 +1447,14 @@ class AllocationRunDbRepository:
             rows = (await session.execute(stmt)).scalars().all()
         return [self._summary(r) for r in rows]
 
+    async def count_runs(self, algorithm: str | None = None) -> int:
+        """匹配条件的 run 总数（不受 limit 影响，供分页 total 使用）"""
+        async with self._session_factory() as session:
+            stmt = select(func.count()).select_from(AllocationRunModel)
+            if algorithm:
+                stmt = stmt.where(AllocationRunModel.algorithm == algorithm)
+            return (await session.execute(stmt)).scalar_one()
+
     async def get_run(self, run_id: uuid.UUID) -> dict | None:
         """返回 run 摘要 + 明细"""
         async with self._session_factory() as session:
@@ -2133,7 +2141,10 @@ async def list_allocation_runs(algorithm: str | None = None, limit: int = 50) ->
     if repo is None:
         raise HTTPException(status_code=503, detail="未启用数据库持久化，无法查询历史运行")
     runs = await repo.list_runs(algorithm=algorithm, limit=limit)
-    return AllocationRunListResponse(runs=runs, total=len(runs))
+    # total 必须用独立 COUNT 查询：list_runs 内部有 SQL LIMIT，
+    # len(runs) 会把被截断的数量当总数（超过 limit 时错误）
+    total = await repo.count_runs(algorithm=algorithm)
+    return AllocationRunListResponse(runs=runs, total=total)
 
 
 @router.get("/runs/{run_id}", response_model=AllocationRunDetailResponse)
