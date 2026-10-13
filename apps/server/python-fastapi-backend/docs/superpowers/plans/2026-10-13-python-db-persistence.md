@@ -2251,7 +2251,7 @@ UAV_PERSIST_RESULTS=on
 
 - 「ORM 模型」小节的 ER 图从 3 张表扩到 10 张，标注每张表的写入方（Python / 将来 Node）
 - 「数据库」小节把 `alembic upgrade head` 的说明补全为：先建库、再设 `UAV_DATABASE_URL`、再迁移；并删除或更正 `uv run dev` / `uv run test` / `uv run lint` 这些**不可执行**的命令（改为 `uvicorn src.main:app ...` / `pytest tests/ -q` / `ruff check src/`）
-- 「环境安装」小节（现教 `uv sync`，而 `uv.lock` 未入 git 且与 `[project.scripts]` 一样不可靠）：说明 dev 依赖（含本计划新增的 `pytest-asyncio`）用 `.venv/Scripts/python.exe -m pip install -e ".[dev]"` 或 `uv pip install -e ".[dev]"` 安装，不要教 `uv sync`（注意：`uv pip install --extra dev` 在 uv 0.12.9 下无效，勿用）
+- 「环境安装」小节（现教 `uv sync`，而 `uv.lock` 未入 git 且与 `[project.scripts]` 一样不可靠）：先 `uv venv` 建虚拟环境，再说明 dev 依赖（含本计划新增的 `pytest-asyncio`）用 `.venv/Scripts/python.exe -m pip install -e ".[dev]"` 或 `uv pip install -e ".[dev]"` 安装，不要教 `uv sync`（注意：`uv pip install --extra dev` 在 uv 0.12.9 下无效，勿用）
 - 新增「持久化开关」小节，说明 `UAV_REPOSITORY_BACKEND` 与 `UAV_PERSIST_RESULTS` 的取值与默认
 
 - [ ] **Step 5: 端到端验证**
