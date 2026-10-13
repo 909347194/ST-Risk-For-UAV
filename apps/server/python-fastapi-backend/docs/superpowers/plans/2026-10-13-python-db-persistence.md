@@ -88,6 +88,11 @@
 ```toml
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+# pytest-asyncio 1.x：循环作用域必须显式声明，否则 configure 阶段告警
+# （未来版本默认值还会变）。function 级即可 —— 集成测试的引擎本来
+# 就是每个用例各自创建、各自 dispose 的。
+asyncio_default_fixture_loop_scope = "function"
+asyncio_default_test_loop_scope = "function"
 addopts = "-m 'not integration'"
 markers = [
     "integration: 需要真实 PostgreSQL（PostGIS + pgvector）的集成测试",
@@ -104,23 +109,14 @@ Expected: `Successfully installed pytest-asyncio-...`
 `tests/conftest.py`：
 
 ```python
-"""pytest 公共 fixture"""
+"""pytest 公共配置占位
 
-import asyncio
-import pytest
+asyncio_mode = "auto"（见 pyproject.toml）已接管 async 测试的循环管理，
+无需任何 fixture。
 
-
-@pytest.fixture(scope="session")
-def event_loop():
-    """会话级事件循环 —— 避免每个用例重建引擎"""
-    loop = asyncio.new_event_loop()
-    yield loop
-    loop.close()
-
-
-@pytest.fixture
-def anyio_backend():
-    return "asyncio"
+注意：pytest-asyncio 1.0 起不再识别自定义 event_loop fixture（写成
+死代码）；如需会话级循环，用 pyproject 里的 asyncio_default_*_loop_scope。
+"""
 ```
 
 - [ ] **Step 4: 验证既有测试仍全绿**
