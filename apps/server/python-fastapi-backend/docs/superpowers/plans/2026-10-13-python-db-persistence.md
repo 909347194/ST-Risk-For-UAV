@@ -1894,20 +1894,39 @@ def get_repository():
 
 > 不要还原成模块级 `_repo = factory.get_uav_repository()` —— 那会在导入时固化后端选择，`monkeypatch` 测试与配置热切换都会失效。
 
-- [ ] **Step 5: 运行确认通过**
+- [ ] **Step 5: 密闭 test_config 的默认值测试**
 
-Run: `.venv/Scripts/python.exe -m pytest tests/test_repository_factory.py tests/test_services.py -q`
+Task 2 的两个默认值测试直接调 `Settings()`，会读真实环境变量与 `.env` 文件。本任务起，真库验证时 `.env` 里会设 `UAV_REPOSITORY_BACKEND=db`（根 `.env` 现有 8 个 `UAV_` 键），这两个测试会误失败。把它们改为密闭的：
+
+```python
+def test_repository_backend_defaults_to_memory(monkeypatch):
+    """默认必须是内存实现 —— 无库环境下服务要能起来"""
+    monkeypatch.delenv("UAV_REPOSITORY_BACKEND", raising=False)
+    assert Settings(_env_file=None).repository_backend == "memory"
+
+
+def test_persist_results_defaults_to_true(monkeypatch):
+    monkeypatch.delenv("UAV_PERSIST_RESULTS", raising=False)
+    assert Settings(_env_file=None).persist_results is True
+```
+
+Run: `.venv/Scripts/python.exe -m pytest tests/test_config.py -q`
+Expected: 4 passed
+
+- [ ] **Step 6: 运行确认通过**
+
+Run: `.venv/Scripts/python.exe -m pytest tests/test_repository_factory.py tests/test_services.py tests/test_config.py -q`
 Expected: 全部 PASS
 
-- [ ] **Step 6: 全量回归**
+- [ ] **Step 7: 全量回归**
 
 Run: `.venv/Scripts/python.exe -m pytest tests/ -q`
 Expected: 全部 PASS
 
-- [ ] **Step 7: 提交**
+- [ ] **Step 8: 提交**
 
 ```bash
-git add src/repositories/factory.py src/services/ tests/test_repository_factory.py
+git add src/repositories/factory.py src/services/ tests/test_repository_factory.py tests/test_config.py
 git commit -m "feat(python-db): 添加仓储工厂并支持按配置切换内存/数据库"
 ```
 
