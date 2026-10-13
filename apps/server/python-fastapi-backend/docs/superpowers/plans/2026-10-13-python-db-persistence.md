@@ -416,7 +416,7 @@ class AllocationItemModel(Base):
 表归属：**Python 写入**。
 """
 
-from sqlalchemy import Column, String, Boolean, Float, DateTime, func
+from sqlalchemy import Column, String, Boolean, Integer, Float, DateTime, func
 from sqlalchemy.dialects.postgresql import JSONB
 
 from src.db.base import Base
@@ -446,7 +446,7 @@ class AdaptabilityResultModel(Base):
 表归属：**Python 写入**。
 """
 
-from sqlalchemy import Column, String, Float, DateTime, func
+from sqlalchemy import Column, String, Integer, Float, DateTime, func
 from sqlalchemy.dialects.postgresql import JSONB
 
 from src.db.base import Base
@@ -480,7 +480,7 @@ waypoints 用 JSONB 而非 PostGIS 线几何：领域模型 PathPlan.waypoints
 空间查询，再补一个由 waypoints 派生的 LINESTRING Z 列。
 """
 
-from sqlalchemy import Column, String, Float, DateTime, func
+from sqlalchemy import Column, String, Integer, Float, DateTime, func
 from sqlalchemy.dialects.postgresql import JSONB
 
 from src.db.base import Base
