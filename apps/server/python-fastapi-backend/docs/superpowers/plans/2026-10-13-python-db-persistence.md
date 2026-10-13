@@ -286,8 +286,6 @@ git commit -m "feat(python-db): 新增仓储/落库配置项并修正 env_file �
 Python 应退化为只读，不再提供写端点。
 """
 
-from datetime import datetime
-
 from sqlalchemy import Column, String, Float, DateTime, func
 from geoalchemy2 import Geometry
 
@@ -319,8 +317,6 @@ time_limit 采用浮点：能无损容纳整数，反之会截断；与领域模
 Task.time_limit: float | None 一致。Node 侧 Drizzle 模型写的 integer
 需要对齐到浮点。
 """
-
-from datetime import datetime
 
 from sqlalchemy import Column, String, Float, DateTime, func
 from geoalchemy2 import Geometry
@@ -377,7 +373,6 @@ git commit -m "feat(python-db): 补全 uavs/tasks 模型时间戳与 status 并�
 """
 
 import uuid
-from datetime import datetime
 
 from sqlalchemy import (Column, String, Integer, Float, DateTime,
                         ForeignKey, func)
@@ -421,8 +416,6 @@ class AllocationItemModel(Base):
 表归属：**Python 写入**。
 """
 
-from datetime import datetime
-
 from sqlalchemy import Column, String, Boolean, Float, DateTime, func
 from sqlalchemy.dialects.postgresql import JSONB
 
@@ -452,8 +445,6 @@ class AdaptabilityResultModel(Base):
 
 表归属：**Python 写入**。
 """
-
-from datetime import datetime
 
 from sqlalchemy import Column, String, Float, DateTime, func
 from sqlalchemy.dialects.postgresql import JSONB
@@ -488,8 +479,6 @@ waypoints 用 JSONB 而非 PostGIS 线几何：领域模型 PathPlan.waypoints
 是含到达时间的航点列表，转几何会丢掉时间维度。若将来需要按航线做
 空间查询，再补一个由 waypoints 派生的 LINESTRING Z 列。
 """
-
-from datetime import datetime
 
 from sqlalchemy import Column, String, Float, DateTime, func
 from sqlalchemy.dialects.postgresql import JSONB
@@ -547,8 +536,6 @@ git commit -m "feat(python-db): 新增 5 张算法结果表模型"
 ts 用浮点而非时间类型：领域模型 UAVHealthSnapshot.timestamp 是仿真
 时间戳（秒），不是墙钟时间；改用 TIMESTAMPTZ 会丢掉仿真语义。
 """
-
-from datetime import datetime
 
 from sqlalchemy import Column, String, Boolean, Float, DateTime, func
 from sqlalchemy.dialects.postgresql import JSONB
