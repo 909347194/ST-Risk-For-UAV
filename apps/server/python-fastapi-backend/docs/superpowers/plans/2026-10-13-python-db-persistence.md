@@ -949,10 +949,8 @@ git commit -m "refactor(python-db): 仓储与服务接口改为 async"
 ```python
 """映射层 —— 领域模型 ↔ ORM 模型往返"""
 
-import pytest
-
 from src.domain.enums import RiskLevel, UAVStatus
-from src.domain.models import Position, RiskAssessment, UAV, UAVHealthSnapshot
+from src.domain.models import UAV, Position, RiskAssessment, UAVHealthSnapshot
 from src.repositories import mappers
 
 
@@ -1028,14 +1026,20 @@ service 只需面对领域模型。
 ST_AsText，避免在业务代码里处理 WKBElement。
 """
 
-from src.domain.enums import RiskLevel, UAVStatus
-from src.domain.models import (AdaptabilityResult, PathPlan, Position,
-                               RiskAssessment, UAV, UAVHealthSnapshot)
 from src.db.models.adaptability import AdaptabilityResultModel
 from src.db.models.monitoring import FlightSnapshotModel
 from src.db.models.path_plan import PathPlanModel
 from src.db.models.risk_record import RiskRecordModel
 from src.db.models.uav import UAVModel
+from src.domain.enums import UAVStatus
+from src.domain.models import (
+    UAV,
+    AdaptabilityResult,
+    PathPlan,
+    Position,
+    RiskAssessment,
+    UAVHealthSnapshot,
+)
 
 
 # ── 几何 ─────────────────────────────────────────────
