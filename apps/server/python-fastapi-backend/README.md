@@ -16,9 +16,12 @@
 
 ## 快速开始
 
-以下命令均在 `apps/server/python-fastapi-backend/` 目录下执行（`src.main` 使用绝对导入 `from src...`，在别的目录启动会 `ModuleNotFoundError`）。假定已激活虚拟环境（Windows: `.venv\Scripts\activate`；POSIX: `source .venv/bin/activate`）；未激活时，把 `uvicorn` / `pytest` / `ruff` / `alembic` 换成 `.venv/Scripts/python.exe -m ...`（Windows）或 `.venv/bin/python -m ...`（POSIX）。
+以下命令均在 `apps/server/python-fastapi-backend/` 目录下执行（`src.main` 使用绝对导入 `from src...`，在别的目录启动会 `ModuleNotFoundError`）。先 `uv venv` 建虚拟环境（生成 `.venv`）；激活后（Windows: `.venv\Scripts\activate`；POSIX: `source .venv/bin/activate`）可直接用 `uvicorn` / `pytest` / `ruff` / `alembic`；未激活时，把 `uvicorn` / `pytest` / `ruff` / `alembic` 换成 `.venv/Scripts/python.exe -m ...`（Windows）或 `.venv/bin/python -m ...`（POSIX）。
 
 ```bash
+# 建虚拟环境（uv 0.12.x 下 uv sync 不可用，见下）
+uv venv
+
 # 安装运行时 + 开发依赖（含 pytest-asyncio），-e 可编辑安装
 .venv/Scripts/python.exe -m pip install -e ".[dev]"
 # 或（uv 直接装进当前 venv）：
