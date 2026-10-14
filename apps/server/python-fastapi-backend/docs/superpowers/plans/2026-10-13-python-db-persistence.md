@@ -2259,10 +2259,10 @@ UAV_PERSIST_RESULTS=on
 
 - [ ] **Step 5: 端到端验证**
 
-Run（`.env` 设 `UAV_REPOSITORY_BACKEND=db`）：
+Run（不编辑 `.env`——它是凭据文件；用进程级环境变量覆盖，pydantic-settings 优先级 env var > dotenv，等价）：
 ```bash
 .venv/Scripts/python.exe -m alembic upgrade head
-.venv/Scripts/python.exe -m uvicorn src.main:app --host 127.0.0.1 --port 8000 &
+UAV_REPOSITORY_BACKEND=db .venv/Scripts/python.exe -m uvicorn src.main:app --host 127.0.0.1 --port 8000 &
 ```
 
 依次打端点并核对落库：
@@ -2289,10 +2289,12 @@ psql -U postgres -h localhost -d st_risk -c "SELECT uav_id, message FROM flight_
 # 期望：is_anomaly=true，anomaly_reasons 含电量告警；flight_alerts 有对应行
 ```
 
+执行记录：首跑 ⑥ 暴露真 bug —— `record_snapshot` 先 `append_snapshot` 后判异常，db 映射器落库时复制字段，导致 is_anomaly 恒为 false（memory 仓储的引用语义掩盖）；修复 024f434（判定前移 + 回归测试）。
+
 - [ ] **Step 6: 回归确认 memory 模式仍可用**
 
-Run：`.env` 改回 `UAV_REPOSITORY_BACKEND=memory`，然后 `.venv/Scripts/python.exe -m pytest tests/ -q`
-Expected: 全部 PASS，服务在无库配置下也能启动
+Run：默认配置即可（`.env` 无后端开关键，代码默认 memory），`.venv/Scripts/python.exe -m pytest tests/ -q`
+Expected: 全部 PASS（执行时 95 = 94 基线 + 步骤 5 新增回归测试 1 项），服务在无库配置下也能启动
 
 - [ ] **Step 7: 提交**
 
@@ -2300,6 +2302,8 @@ Expected: 全部 PASS，服务在无库配置下也能启动
 git add infra/db/init.sql .env.example apps/server/python-fastapi-backend/src/main.py apps/server/python-fastapi-backend/README.md
 git commit -m "docs(python-db): 修正 init.sql、补配置示例与 README，关闭时释放引擎"
 ```
+
+执行记录：本步已在无库阶段完成（b9b2848）；README 的 `uv venv` 行于 DB 阶段补交（2d3db6f）。
 
 ---
 
