@@ -9,13 +9,13 @@ def get_repository():
 
 
 async def record_snapshot(snapshot: UAVHealthSnapshot) -> UAVHealthSnapshot:
-    await get_repository().append_snapshot(snapshot)
     anomalies = detect_anomalies(snapshot)
     if anomalies:
         snapshot.is_anomaly = True
         snapshot.anomaly_reasons = anomalies
-        for a in anomalies:
-            await get_repository().append_alert(snapshot.uav_id, a)
+    await get_repository().append_snapshot(snapshot)
+    for a in anomalies:
+        await get_repository().append_alert(snapshot.uav_id, a)
     return snapshot
 
 

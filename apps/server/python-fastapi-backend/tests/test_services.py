@@ -85,3 +85,38 @@ async def test_snapshot_record():
 
     track = await get_track("uav-1")
     assert len(track) >= 1
+
+
+async def test_record_snapshot_persists_anomaly_fields(monkeypatch):
+    """回归：异常判定必须发生在 append_snapshot 之前。
+
+    db 仓储的映射器在插入时复制对象字段，若先落库再判定，
+    落库行将永远是 is_anomaly=False / 空 reasons（memory 仓储存引用，
+    恰好掩盖此 bug——测试用深拷贝的记录仓储暴露它）。
+    """
+    saved: list[UAVHealthSnapshot] = []
+
+    class RecordingRepo:
+        def __init__(self) -> None:
+            self.alerts: list[tuple[str, str]] = []
+
+        async def append_snapshot(self, snap: UAVHealthSnapshot) -> None:
+            saved.append(snap.model_copy(deep=True))
+
+        async def append_alert(self, uav_id: str, alert: str) -> None:
+            self.alerts.append((uav_id, alert))
+
+    repo = RecordingRepo()
+    monkeypatch.setattr(
+        "src.repositories.factory.get_flight_log_repository", lambda: repo
+    )
+
+    snap = UAVHealthSnapshot(
+        uav_id="uav-1", position=Position(x=10, y=20, z=50),
+        battery_remaining=8.0, speed=5.0, heading=90.0, timestamp=1.0,
+    )
+    await record_snapshot(snap)
+
+    assert saved[0].is_anomaly is True
+    assert saved[0].anomaly_reasons == ["电量过低: 8.0Wh"]
+    assert repo.alerts == [("uav-1", "电量过低: 8.0Wh")]
