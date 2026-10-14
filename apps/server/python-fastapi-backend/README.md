@@ -245,6 +245,8 @@ src/
 
 共 10 张表，表结构全部由 Alembic 迁移管理（见下方「数据库」）。
 
+每张表的完整**列定义、索引、写入/读取路径与 psql 速查**见 **[docs/database-schema.md](docs/database-schema.md)**；下方 ER 图仅为速览。
+
 ```mermaid
 erDiagram
     UAVModel {
