@@ -759,8 +759,9 @@ git commit -m "feat(python-db): 添加 Alembic 异步迁移配置"
 
 - [ ] **Step 1: 确认前置就绪**
 
-Run: `.venv/Scripts/python.exe -c "import asyncio,asyncpg; from src.utils.config import get_settings; asyncio.run(asyncpg.connect(get_settings().database_url, timeout=5))" && echo CONNECT_OK`
+Run: `.venv/Scripts/python.exe -c "import asyncio,asyncpg; from urllib.parse import urlparse; from src.utils.config import get_settings; asyncio.run(asyncpg.connect(get_settings().database_url.replace('postgresql+asyncpg://','postgresql://'), timeout=5))" && echo CONNECT_OK`
 Expected: `CONNECT_OK`。失败则先修正 `.env` 与建库，不要继续
+注：asyncpg 只认 `postgresql://` 前缀，`+asyncpg` 是给 SQLAlchemy 用的，裸连 asyncpg 前必须去掉（实测 `ClientConfigurationError: invalid DSN`）。
 
 - [ ] **Step 2: 生成迁移骨架**
 
@@ -819,6 +820,8 @@ Expected: 输出若干 `Running upgrade  -> <rev>, initial schema`，无报错
 
 Run:
 ```bash
+# 从配置读取密码注入 PGPASSWORD（不回显、不落盘、不打印 .env 内容）
+export PGPASSWORD=$(.venv/Scripts/python.exe -c "from urllib.parse import urlparse; from src.utils.config import get_settings; print(urlparse(get_settings().database_url).password or '')")
 psql -U postgres -h localhost -d st_risk -c "\dt" && \
 psql -U postgres -h localhost -d st_risk -c "SELECT f_table_name, f_geometry_column, coord_dimension, srid, type FROM geometry_columns;"
 ```
