@@ -296,7 +296,7 @@ class UAVModel(Base):
     __tablename__ = 'uavs'
 
     id = Column(String, primary_key=True)
-    position = Column(Geometry('POINT_Z', srid=4326), nullable=False)  # PostGIS 3D 点
+    position = Column(Geometry('POINTZ', srid=4326), nullable=False)  # PostGIS 3D 点
     speed = Column(Float, nullable=False)
     max_payload = Column(Float, nullable=False)
     battery = Column(Float, nullable=False)
@@ -328,7 +328,7 @@ class TaskModel(Base):
     __tablename__ = 'tasks'
 
     id = Column(String, primary_key=True)
-    position = Column(Geometry('POINT_Z', srid=4326), nullable=False)
+    position = Column(Geometry('POINTZ', srid=4326), nullable=False)
     priority = Column(String, nullable=False, default='medium')
     payload_weight = Column(Float, nullable=False)
     time_limit = Column(Float, nullable=True)
@@ -550,7 +550,7 @@ class FlightSnapshotModel(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     uav_id = Column(String, nullable=False, index=True)
     ts = Column(Float, nullable=False)
-    position = Column(Geometry('POINT_Z', srid=4326), nullable=False)
+    position = Column(Geometry('POINTZ', srid=4326), nullable=False)
     battery_remaining = Column(Float, nullable=False)
     speed = Column(Float, nullable=False)
     heading = Column(Float, nullable=False)
@@ -785,17 +785,17 @@ from pgvector.sqlalchemy import Vector
     op.execute("CREATE EXTENSION IF NOT EXISTS vector")
 ```
 
-- [ ] **Step 4: 人工核对并补齐索引**
+- [ ] **Step 4: 核对索引与几何类型（GIST 由 geoalchemy2 自动建，不要显式 create_index）**
 
-逐条核对生成的 `upgrade()`，确认下列索引存在，缺则补 `op.create_index`：
+逐条核对生成的 `upgrade()`，确认下列索引存在，缺则补：
 
 ```python
-    # 几何列的 GIST 索引（geoalchemy2 的自动建索引在 autogenerate 下不可靠，逐个核对）
-    op.create_index('idx_uavs_position', 'uavs', ['position'], postgresql_using='gist')
-    op.create_index('idx_tasks_position', 'tasks', ['position'], postgresql_using='gist')
-    op.create_index('idx_flight_snapshots_position', 'flight_snapshots', ['position'],
-                    postgresql_using='gist')
-    op.create_index('idx_flight_logs_track', 'flight_logs', ['track'], postgresql_using='gist')
+    # 几何列的 GIST 索引（idx_uavs_position / idx_tasks_position /
+    # idx_flight_snapshots_position / idx_flight_logs_track）由 geoalchemy2 在
+    # create_table 时自动创建（spatial_index=True 默认，命名 idx_<表>_<列>），
+    # 不要显式 op.create_index，否则同名 DuplicateTableError（实测）。
+    # 将来若再 autogenerate 添加新的几何表，会重复渲染显式 create_index 而报重名，
+    # 届时需在 env.py 接 geoalchemy2 的 alembic_helpers 或手工删掉生成语句。
     # 向量列的 HNSW 索引
     op.execute("CREATE INDEX idx_flight_logs_embedding ON flight_logs "
                "USING hnsw (embedding vector_l2_ops)")
@@ -807,7 +807,7 @@ from pgvector.sqlalchemy import Vector
     op.create_index('idx_flight_alerts_uav', 'flight_alerts', ['uav_id', 'created_at'])
 ```
 
-同时确认 `uavs` / `tasks` 的 `position`、`flight_logs.track` 列类型为 `geoalchemy2.types.Geometry`，`flight_logs.embedding` 为 `Vector(128)`；若 autogenerate 把它们渲染成了别的类型，手工改回。
+同时确认 `uavs` / `tasks` 的 `position`、`flight_logs.track` 列类型为 `geoalchemy2.types.Geometry`，`flight_logs.embedding` 为 `Vector(128)`；若 autogenerate 把它们渲染成了别的类型，手工改回。几何 typmod 字符串必须是 `POINTZ` / `LINESTRINGZ`（`POINT_Z` / `LINESTRING Z` 会渲染成非法 typmod，实测 `Invalid geometry type modifier`），模型文件（Task 3~5）里同样统一为 `POINTZ` / `LINESTRINGZ`，避免与迁移/DB 漂移使后续 autogenerate 生成必然失败的 ALTER。
 
 `downgrade()` 保持只 `op.drop_table`，**不要**加 `DROP EXTENSION` —— 扩展是实例级对象，删除会影响同实例其他库。
 
@@ -825,7 +825,7 @@ export PGPASSWORD=$(.venv/Scripts/python.exe -c "from urllib.parse import urlpar
 psql -U postgres -h localhost -d st_risk -c "\dt" && \
 psql -U postgres -h localhost -d st_risk -c "SELECT f_table_name, f_geometry_column, coord_dimension, srid, type FROM geometry_columns;"
 ```
-Expected: 10 张表；`geometry_columns` 里 `uavs.position`、`tasks.position`、`flight_snapshots.position` 为 `POINTZ`/3/4326，`flight_logs.track` 为 `LINESTRINGZ`/3/4326
+Expected: 10 张表；`geometry_columns` 里 4 列 coord_dimension=3、srid=4326。注意：PostGIS 3.6 该视图的 `type` 列会剥掉 Z 后缀（显示 POINT/LINESTRING），这不是列定义问题；列定义可用 pg_attribute typmod 或 `\d` 核对为 PointZ/LineStringZ
 
 - [ ] **Step 7: 验证 downgrade 可回滚**
 
