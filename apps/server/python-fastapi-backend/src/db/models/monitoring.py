@@ -22,7 +22,7 @@ class FlightSnapshotModel(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     uav_id = Column(String, nullable=False, index=True)
     ts = Column(Float, nullable=False)
-    position = Column(Geometry('POINT_Z', srid=4326), nullable=False)
+    position = Column(Geometry('POINTZ', srid=4326), nullable=False)
     battery_remaining = Column(Float, nullable=False)
     speed = Column(Float, nullable=False)
     heading = Column(Float, nullable=False)

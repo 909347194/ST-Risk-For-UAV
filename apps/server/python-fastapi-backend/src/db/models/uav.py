@@ -15,7 +15,7 @@ class UAVModel(Base):
     __tablename__ = 'uavs'
 
     id = Column(String, primary_key=True)
-    position = Column(Geometry('POINT_Z', srid=4326), nullable=False)  # PostGIS 3D 点
+    position = Column(Geometry('POINTZ', srid=4326), nullable=False)  # PostGIS 3D 点
     speed = Column(Float, nullable=False)
     max_payload = Column(Float, nullable=False)
     battery = Column(Float, nullable=False)

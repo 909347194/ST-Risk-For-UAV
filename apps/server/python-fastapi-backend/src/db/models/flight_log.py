@@ -19,7 +19,7 @@ class FlightLogModel(Base):
 
     id = Column(String, primary_key=True)
     uav_id = Column(String, nullable=False, index=True)
-    track = Column(Geometry('LINESTRING Z', srid=4326))  # PostGIS 3D 轨迹线
+    track = Column(Geometry('LINESTRINGZ', srid=4326))  # PostGIS 3D 轨迹线
     embedding = Column(Vector(128))  # pgvector 特征向量（用于轨迹相似度搜索）
     start_time = Column(DateTime)
     end_time = Column(DateTime)

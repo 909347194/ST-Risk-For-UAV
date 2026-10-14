@@ -17,7 +17,7 @@ class TaskModel(Base):
     __tablename__ = 'tasks'
 
     id = Column(String, primary_key=True)
-    position = Column(Geometry('POINT_Z', srid=4326), nullable=False)
+    position = Column(Geometry('POINTZ', srid=4326), nullable=False)
     priority = Column(String, nullable=False, default='medium')
     payload_weight = Column(Float, nullable=False)
     time_limit = Column(Float, nullable=True)
