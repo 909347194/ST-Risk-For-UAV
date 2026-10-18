@@ -3,23 +3,20 @@
 //
 // 关键点：
 //  - 所有 pi-agent-core / pi-ai 的"运行时值"都通过 loadPiRuntime() 动态取出，杜绝静态 ESM import。
-//  - 工具参数用 TypeBox（ai.Type.Object），不是 zod；pi 运行时自动按 schema 校验工具参数。
+//  - 工具参数用 TypeBox（见 tools/assign-tasks.tool.ts），pi 运行时自动按 schema 校验工具参数。
 //  - 工具 execute 只构造 WorkerTask 并调用注入的 dispatch（Router），不直接持有 Worker 实现。
 //  - 工具失败 throw（pi 约定，见 workerResultToToolResult）；Worker id 用 pi 的 uuidv7。
 //  - Agent 构造：systemPrompt / model / tools 都在 initialState 里（pi 契约，model 必给，否则跑不了一轮）。
 //  - Replanner/Feedback/执行策略不是自研框架，而是 pi 的 finishTurn/afterToolCall/beforeToolCall 钩子，
 //    由 orchestration 层工厂构造后注入（见 orchestration/replanner|feedback-handler|execution-policy）。
 
-import { WORKER_CONTRACT_VERSION } from '@/contracts/version';
-import type { WorkerTask } from '@/contracts/worker-task';
-import type { WorkerResult } from '@/contracts/worker-result';
-import { definePlannerTool, workerResultToToolResult } from '@/agents/core/planner-tool';
-import { createStreamFn, loadPiRuntime } from '@/agents/core/runtime-loader';
 import type { AgentOptions } from '@earendil-works/pi-agent-core';
 import type { Model, Models } from '@earendil-works/pi-ai';
+import { createStreamFn, loadPiRuntime } from '@/agents/core/runtime-loader';
+import { createAssignTasksTool } from '@/agents/planner/tools/assign-tasks.tool';
+import type { DispatchFn } from '@/orchestration/worker-router';
 
-/** Planner 委派 Worker 的入口（由 WorkerRouter 注入）。 */
-export type DispatchFn = (capability: string, task: WorkerTask) => Promise<WorkerResult>;
+export type { DispatchFn };
 
 export interface CreatePlannerAgentOptions {
   /** pi-ai 的 Models 实例（已配置凭证/provider）。 */
@@ -47,44 +44,13 @@ export interface CreatePlannerAgentOptions {
  * 返回 Agent（stateful），调用方通过 `agent.prompt(...)` 驱动一次调度认知。
  */
 export async function createPlannerAgent(options: CreatePlannerAgentOptions) {
-  const { ai } = await loadPiRuntime();
-  const { Type } = ai;
+  const { ai, core } = await loadPiRuntime();
 
-  // ① Planner 工具：委派"任务分配"能力。参数用 TypeBox。
-  const assignTasksTool = definePlannerTool({
-    name: 'assign_tasks',
-    label: '任务分配',
-    description: '将任务分配给可用无人机，返回分配方案。调用 allocation.assign 能力。',
-    parameters: Type.Object({
-      uavIds: Type.Array(Type.String()),
-      taskIds: Type.Array(Type.String()),
-      algorithm: Type.Optional(Type.String()),
-    }, { additionalProperties: false }),
-    // 派发有副作用（写库/触发算法服务）→ 整批串行，且不可重放。
-    executionMode: 'sequential',
-    replay: 'never',
-    execute: async (toolCallId, params) => {
-      const task: WorkerTask = {
-        taskId: ai.uuidv7(), // pi 约定：时间有序 ID
-        correlationId: toolCallId, // pi 的 toolCallId，供 afterToolCall 落库三方关联
-        planId: '',
-        runId: '',
-        workerType: 'allocation-worker',
-        capability: 'allocation.assign',
-        objective: 'assign tasks to uavs',
-        input: params,
-        attempt: 0,
-        schemaVersion: WORKER_CONTRACT_VERSION,
-      };
-      const result = await options.dispatch('allocation.assign', task);
-      // failed → throw；need_input → terminate:true；其余正常返回（回填 correlationId）。
-      return workerResultToToolResult(result, toolCallId);
-    },
-  });
+  // ① Planner 工具：委派"任务分配"能力（薄按钮，参数 TypeBox、失败 throw、派发串行）。
+  const assignTasksTool = createAssignTasksTool(ai, options.dispatch);
 
   // ② 构造 Agent：streamFn 由 pi-ai 的 Models 实例提供；systemPrompt / model / tools 都在 initialState（pi 契约）。
   //    Replanner/Feedback/执行策略以 pi 钩子注入（undefined 即不启用，不自研平行机制）。
-  const { core } = await loadPiRuntime();
   const agent = new core.Agent({
     streamFn: createStreamFn(options.models),
     initialState: {

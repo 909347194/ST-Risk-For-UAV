@@ -380,6 +380,8 @@ PlannerTool.execute ──dispatch('allocation.assign')──▶ Registry 查询
 
 ## 10. 第一阶段逐文件落地方案（按"先核对、再逐文件实现"）
 
+> **2026-10-18 进度：下述骨架已全部就位**（含 AlgorithmClient 迁移、assign-tasks 工具抽离、DispatchModule 装配；标注 TODO 的即 Phase 1 待接逻辑：LLM 闭环 / provider 注册 / 领域解读）。验证：tsc 0 错误、jest 23/23、eslint 0 错误。
+
 目标：跑通最小闭环（Runtime Factory + Planner + Allocation Worker + Router + 一个 Python 调用），用户提交调度请求后 Planner 能委派、拿结构化结果、返回。
 
 **新增 / 重构文件清单（Phase 1）：**

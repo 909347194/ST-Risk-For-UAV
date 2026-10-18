@@ -1,14 +1,14 @@
 // Agent Service — 编排业务逻辑，调用 Python 后端
 
 import { Injectable } from '@nestjs/common';
-import { PythonBackendClient } from '@/clients';
+import { AlgorithmClient } from '@/services/python/python-client';
 import type { AgentTaskResponse } from '@st-risk/shared-ts';
 import { AgentRepository } from './repositories/agent.repo';
 
 @Injectable()
 export class AgentService {
   constructor(
-    private readonly pythonClient: PythonBackendClient,
+    private readonly pythonClient: AlgorithmClient,
     private readonly repo: AgentRepository,
   ) {}
 

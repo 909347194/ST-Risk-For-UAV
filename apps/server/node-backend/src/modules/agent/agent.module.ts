@@ -4,7 +4,7 @@ import { Module } from '@nestjs/common';
 import { AgentController } from './agent.controller';
 import { AgentService } from './agent.service';
 import { AgentRepository } from './repositories/agent.repo';
-import { PythonBackendClient } from '@/clients';
+import { AlgorithmClient } from '@/services/python/python-client';
 
 @Module({
   controllers: [AgentController],
@@ -12,13 +12,13 @@ import { PythonBackendClient } from '@/clients';
     AgentService,
     AgentRepository,
     {
-      provide: PythonBackendClient,
+      provide: AlgorithmClient,
       useFactory: () =>
-        new PythonBackendClient({
+        new AlgorithmClient({
           baseUrl: process.env.PYTHON_BACKEND_URL,
         }),
     },
   ],
-  exports: [AgentService, PythonBackendClient],
+  exports: [AgentService, AlgorithmClient],
 })
 export class AgentModule {}

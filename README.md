@@ -62,6 +62,32 @@ graph LR
 - **Python 后端**：算法计算（路径规划、任务分配、风险评估）
 - **PostgreSQL**：统一数据存储（PostGIS 空间 + pgvector 向量）
 
+## Agent 架构（Node 后端）
+
+Agent 认知与编排基于 **pi**（`@earendil-works/pi-agent-core` + `@earendil-works/pi-ai`）扩展：凡 pi 已有原语一律复用，**不造平行框架**。完整设计见 [docs/architecture/agent-architecture-node-landing.md](docs/architecture/agent-architecture-node-landing.md)。
+
+**核心链路**（capability 是能力标识字符串，是解耦键——不是工具，也不是请求）：
+
+```
+PlannerTool（LLM 入口）→ WorkerRouter.dispatch(capability) → WorkerRuntime（确定型）→ AlgorithmClient（唯一闸门）→ Python FastAPI（算法本体）
+```
+
+**pi 原语映射**：Replanner = `finishTurn`（只做预算/安全否决，**正向决策全部归 Planner**）｜Feedback/审计 = `afterToolCall`｜执行策略 = `beforeToolCall`｜并行 = `toolExecution`｜人机回环 = `steer/followUp`｜追溯与推流 = `subscribe` 事件流。
+
+**Node 后端目录骨架**（`apps/server/node-backend/src/`）：
+
+| 目录 | 职责 | 状态 |
+|---|---|---|
+| `agents/` | Planner + Worker（领域能力，不是算法） | 骨架 ✓（allocation 已接） |
+| `orchestration/` | WorkerRouter + 三钩子工厂 + PlannerOrchestrator | 骨架 ✓（LLM 闭环 Phase 1） |
+| `registry/` | capability → Worker 定义（V1 静态注册） | 骨架 ✓ |
+| `contracts/` | WorkerTask / WorkerResult + zod 边界校验 | ✓ |
+| `services/` | AlgorithmClient（Python 闸门）+ DB 仓储 | 骨架 ✓ |
+| `api/` | 对外 HTTP（`POST /api/v1/dispatch`） | 骨架 ✓ |
+| `infrastructure/llm/` | pi-ai Models 装配 | 骨架 ✓（provider 注册 Phase 1） |
+
+**关键约定**：工具参数用 TypeBox（pi 运行时自动校验，zod 只管业务边界）｜工具失败 `throw`（isError 交还模型自纠）｜id 用 `uuidv7`｜**算法全部封装在 Python 端**，Node 只做编排与决策｜最终方案须过 validation 硬闸门后再下发。
+
 ## 快速开始
 
 ### Docker 一键启动
