@@ -13,8 +13,10 @@ export type FeedbackType =
   | 'none';
 
 export interface WorkerTask<TInput = unknown> {
-  /** 本次工具调用的唯一 ID（由 Planner/Orchestrator 生成）。 */
+  /** 本次工具调用的唯一 ID（由 Planner/Orchestrator 生成，推荐 pi 导出的 uuidv7）。 */
   taskId: string;
+  /** pi 的 toolCallId：把「工具调用 ↔ WorkerTask ↔ worker_executions 落库记录」三方可关联。 */
+  correlationId: string;
   /** 所属调度计划 ID。 */
   planId: string;
   /** 本次执行 Run ID。 */
