@@ -243,8 +243,9 @@ pi 两包是 **ESM-only** 且 `exports` 只有 `"import"` 条件——CJS `requi
 | `assessRisk(req)` | `POST /api/v1/risk/assess` | 风险评估 |
 | `evaluateAdaptability(req)` | `POST /api/v1/adaptability/evaluate` | 适配评估 |
 
-统一提供：per-method 超时、`AbortSignal` 贯通（`agent.abort()` 真取消）、错误映射
+统一提供：per-method 超时、`AbortSignal` 贯通（`agent.abort()` 真取消）、`X-Correlation-Id` 透传、错误映射
 （`AlgorithmError { code, retryable }`：400/422→不重试，5xx/网络/超时→可重试）、响应 zod 校验。
+**Python 端接口契约（实现者直接照做）**：[`docs/architecture/python-api-contract.md`](../../docs/architecture/python-api-contract.md)
 
 ## 新增一个能力（固定 5 步）
 

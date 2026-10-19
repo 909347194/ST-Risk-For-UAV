@@ -22,16 +22,48 @@ export class AlgorithmError extends Error {
   }
 }
 
-// ── 请求/响应类型（骨架；字段以 Python 端 pydantic schema 为准，Phase 1 与 zod schema 双向同步）──
+// ── 请求/响应类型（真相源 = Python pydantic，见 docs/architecture/python-api-contract.md；字段名与之逐字一致）──
+export interface PositionPayload {
+  x: number;
+  y: number;
+  z?: number;
+}
+/** Python `UAV`（domain/models.py）的 wire 形状。 */
+export interface UavPayload {
+  id: string;
+  position: PositionPayload;
+  speed: number;
+  max_payload: number;
+  battery: number;
+  status?: string;
+}
+/** Python `Task` 的 wire 形状。 */
+export interface TaskPayload {
+  id: string;
+  position: PositionPayload;
+  priority?: string;
+  payload_weight: number;
+  time_limit?: number | null;
+}
+/** Python `TaskAllocation` 的 wire 形状。 */
+export interface TaskAllocationPayload {
+  uav_id: string;
+  task_id: string;
+  estimated_cost: number;
+}
 export interface AllocateTasksRequest {
-  uavIds: string[];
-  taskIds: string[];
+  /** 可用无人机完整对象（≥1）；字段对齐 Python `AllocateRequest.uavs: list[UAV]`。 */
+  uavs: UavPayload[];
+  /** 待分配任务完整对象（≥1）；字段对齐 `AllocateRequest.tasks: list[Task]`。 */
+  tasks: TaskPayload[];
   algorithm?: string;
   params?: Record<string, unknown>;
 }
 export interface AllocateTasksResponse {
-  allocations: unknown[];
-  unassigned_tasks: unknown[];
+  allocations: TaskAllocationPayload[];
+  /** 未能分配的任务 ID（无可行方案 = 全部；领域事实，不是错误）。 */
+  unassigned_tasks: string[];
+  /** 实际使用的算法（必须回带，可追溯）。 */
   algorithm_used: string;
 }
 export interface PlanPathRequest {
@@ -68,6 +100,8 @@ export interface CallOptions {
   signal?: AbortSignal;
   /** 覆盖本次调用超时（重算法配大值，别用统一 10s 误杀）。 */
   timeoutMs?: number;
+  /** X-Correlation-Id（= pi toolCallId）：Python 侧透传进日志，全链路回放。 */
+  correlationId?: string;
 }
 
 export interface AlgorithmClientOptions {
@@ -78,10 +112,16 @@ export interface AlgorithmClientOptions {
   timeouts?: Record<string, number>;
 }
 
-/** 响应边界 schema（zod）—— 与 Python pydantic 对齐后可收紧；先校验最关键的字段存在性。 */
+/** 响应边界 schema（zod）—— 与 Python pydantic 对齐（真相源见 python-api-contract.md）。 */
 const allocateTasksResponseSchema = z.object({
-  allocations: z.array(z.unknown()),
-  unassigned_tasks: z.array(z.unknown()),
+  allocations: z.array(
+    z.object({
+      uav_id: z.string(),
+      task_id: z.string(),
+      estimated_cost: z.number(),
+    }),
+  ),
+  unassigned_tasks: z.array(z.string()),
   algorithm_used: z.string(),
 });
 
@@ -156,10 +196,12 @@ export class AlgorithmClient {
   private async request<T>(path: string, init: RequestInit, opts: CallOptions): Promise<T> {
     const timeoutMs = opts.timeoutMs ?? this.timeouts[path] ?? this.defaultTimeoutMs;
     const signal = mergeSignals(opts.signal, AbortSignal.timeout(timeoutMs));
+    const headers = new Headers(init.headers);
+    if (opts.correlationId) headers.set('X-Correlation-Id', opts.correlationId);
 
     let res: Response;
     try {
-      res = await fetch(`${this.baseUrl}${path}`, { ...init, signal });
+      res = await fetch(`${this.baseUrl}${path}`, { ...init, headers, signal });
     } catch (error) {
       if (opts.signal?.aborted) {
         throw new AlgorithmError('request aborted by caller', 'ABORTED', false);
