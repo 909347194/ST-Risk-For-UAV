@@ -33,6 +33,14 @@ export async function loadPiAi(): Promise<PiAi> {
   return dynamicImport('@earendil-works/pi-ai') as Promise<PiAi>;
 }
 
+/**
+ * 加载 pi-ai 的 provider 子模块（如 `@earendil-works/pi-ai/providers/deepseek`）。
+ * 子路径同样是 ESM-only，必须动态 import；模块内取 `<name>Provider()` 工厂。
+ */
+export async function loadPiProviderModule(provider: string): Promise<Record<string, unknown>> {
+  return dynamicImport(`@earendil-works/pi-ai/providers/${provider}`) as Promise<Record<string, unknown>>;
+}
+
 /** 并行加载两个命名空间。 */
 export async function loadPiRuntime(): Promise<{ core: PiAgentCore; ai: PiAi }> {
   const [core, ai] = await Promise.all([loadPiAgentCore(), loadPiAi()]);

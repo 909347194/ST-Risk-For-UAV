@@ -291,16 +291,15 @@ pnpm run test:node
 ## 当前状态与待办
 
 **已就绪**：目录骨架完整、契约与钩子落地、AlgorithmClient 闸门、Registry/Router、
-Plan/Run 落库、29 单测、README/架构文档同步。
+Plan/Run 落库、**LLM 选型接入（DeepSeek deepseek-flash）**、29 单测、README/架构文档同步。
 
 **审查 4 问题已修复（2026-10-19）**：①工具 `planId/runId` 从 `runContext` 绑定（不再空串）
 ②system-prompt 能力清单由 `router.listCapabilities()` 动态生成 ③策略常量收敛到
 `EXECUTION_POLICY_DEFAULTS` ④contracts 改 zod 单源（类型 `z.infer` 推导，无双份维护）。
 
 **Phase 1 待接**（均有 TODO 标注）：
-1. `infrastructure/llm`：provider 动态注册（`createPlannerModel`）
-2. `planner-orchestrator`：LLM 闭环（createPlannerAgent → prompt → subscribe 事件流 → SSE）
-3. Run 硬超时 → `agent.abort()` 降级人工；validation 硬闸门接入
+1. `planner-orchestrator`：LLM 闭环（`createPlannerModel()` 已就绪 → createPlannerAgent → prompt → subscribe 事件流 → SSE）
+2. Run 硬超时 → `agent.abort()` 降级人工；validation 硬闸门接入
 
 ## 环境变量
 
@@ -309,6 +308,9 @@ Plan/Run 落库、29 单测、README/架构文档同步。
 | `PORT` / `NODE_API_PORT` | `3000` | 服务端口 |
 | `PYTHON_BACKEND_URL` | `http://localhost:8000` | Python 算法服务地址 |
 | `DATABASE_URL` | `postgresql://postgres:postgres@localhost:5432/st_risk` | PostgreSQL 连接 |
+| `DEEPSEEK_API_KEY` | （必填） | DeepSeek API key（pi provider 自动解析，key 不进代码/配置） |
+| `LLM_PROVIDER` | `deepseek` | LLM provider（pi-ai KnownProvider） |
+| `LLM_MODEL_ID` | `deepseek-flash` | 模型 ID（pi-ai 目录内；如需更强推理可换 `deepseek-v4-pro`） |
 
 ## 依赖
 
