@@ -13,6 +13,19 @@ export interface ToolCallTracker {
   start(toolCallId: string): void;
 }
 
+/**
+ * 执行策略默认值（唯一收敛点，不再散落内联在各装配处）。
+ * 可被调用方覆盖；后续可接 env/配置中心。
+ */
+export const EXECUTION_POLICY_DEFAULTS = {
+  /** 单个工具的最大调用次数（含重试）。 */
+  maxCallsPerTool: 3,
+  /** Replanner 否决线：最大决策轮次（finishTurn maxTurns）。 */
+  maxTurns: 8,
+  /** Run 硬超时（毫秒；超时降级人工接管）。 */
+  timeoutMs: 120_000,
+} as const;
+
 export interface ExecutionPolicyOptions {
   /** Run 是否已取消（如人工中止）。true → block + terminate（整批全 terminate 才停轮）。 */
   isRunCancelled?: () => Promise<boolean> | boolean;

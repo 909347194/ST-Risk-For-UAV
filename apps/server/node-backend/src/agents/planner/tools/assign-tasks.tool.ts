@@ -5,16 +5,19 @@ import type { AgentTool } from '@earendil-works/pi-agent-core';
 import { definePlannerTool, workerResultToToolResult } from '@/agents/core/planner-tool';
 import type { PiAi } from '@/agents/core/runtime-loader';
 import type { DispatchFn } from '@/orchestration/worker-router';
+import type { PlannerRunContext } from '@/agents/core/planner-context';
 import type { WorkerTask } from '@/contracts/worker-task';
 import { WORKER_CONTRACT_VERSION } from '@/contracts/version';
 
 /**
  * 构造 assign_tasks 工具。
  * @param ai pi-ai 命名空间（取 Type / uuidv7 运行时值；经 runtime-loader 动态加载后传入）
+ * @param ctx 当前 Run 上下文（planId/runId 从此绑定，不再留空串）
  */
 export function createAssignTasksTool(
   ai: Pick<PiAi, 'Type' | 'uuidv7'>,
   dispatch: DispatchFn,
+  ctx: Pick<PlannerRunContext, 'planId' | 'runId'>,
 ): AgentTool<any> {
   const { Type } = ai;
 
@@ -34,8 +37,8 @@ export function createAssignTasksTool(
       const task: WorkerTask = {
         taskId: ai.uuidv7(), // pi 约定：时间有序 ID
         correlationId: toolCallId, // pi 的 toolCallId，供 afterToolCall 落库三方关联
-        planId: '',
-        runId: '',
+        planId: ctx.planId,
+        runId: ctx.runId,
         workerType: 'allocation-worker',
         capability: 'allocation.assign',
         objective: 'assign tasks to uavs',

@@ -13,6 +13,11 @@ export type DispatchFn = (capability: string, task: WorkerTask, signal?: AbortSi
 export class WorkerRouter {
   constructor(private readonly registry: WorkerRegistry) {}
 
+  /** 已注册能力视图（供 system-prompt 动态生成能力清单等）。 */
+  listCapabilities(): { capability: string; description: string }[] {
+    return this.registry.list().map((d) => ({ capability: d.capability, description: d.description }));
+  }
+
   dispatch: DispatchFn = async (capability, task, signal) => {
     const definition = this.registry.resolve(capability);
     if (!definition) {

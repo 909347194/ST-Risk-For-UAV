@@ -4,64 +4,19 @@
 //   ① WorkerRuntime 返回的 WorkerResult（Router 回收时校验）
 //   ② Python 服务响应（AlgorithmClient 回收时校验）
 //   ③ 模型/Orchestrator 构造 WorkerTask 时的领域 input 兜底
-// TS 接口本身不能验证运行期数据，这一层必须有。
+//
+// schema 真相源在 contracts/worker-task.ts / worker-result.ts（TS 类型由 schema 推导，单源无漂移）；
+// 本文件只提供解析入口与统一导出面。
 
-import { z } from 'zod';
+import { workerTaskSchema } from './worker-task';
+import { workerResultSchema } from './worker-result';
+import type { WorkerTask } from './worker-task';
+import type { WorkerResult } from './worker-result';
 
-import type { WorkerTask } from '@/contracts/worker-task';
-import type { WorkerResult } from '@/contracts/worker-result';
-
-export const workerStatusSchema = z.enum(['success', 'partial', 'failed', 'need_input']);
-export const feedbackTypeSchema = z.enum([
-  'replan',
-  'reallocate',
-  'reroute',
-  'reassess_risk',
-  'need_information',
-  'none',
-]);
-
-export const workerFeedbackSchema = z.object({
-  type: feedbackTypeSchema,
-  reason: z.string(),
-  affectedTaskIds: z.array(z.string()).optional(),
-});
-
-export const workerErrorSchema = z.object({
-  code: z.string(),
-  message: z.string(),
-  retryable: z.boolean(),
-});
-
-/** WorkerResult 边界 schema（与 contracts/worker-result.ts 的 interface 同步演进）。 */
-export const workerResultSchema = z.object({
-  taskId: z.string(),
-  correlationId: z.string().optional(),
-  planId: z.string(),
-  runId: z.string(),
-  workerType: z.string(),
-  capability: z.string().optional(),
-  attempt: z.number().optional(),
-  durationMs: z.number().optional(),
-  status: workerStatusSchema,
-  result: z.unknown().optional(),
-  feedback: workerFeedbackSchema.optional(),
-  error: workerErrorSchema.optional(),
-});
-
-/** WorkerTask 边界 schema（模型参数包成任务后、分发前校验）。 */
-export const workerTaskSchema = z.object({
-  taskId: z.string(),
-  correlationId: z.string(),
-  planId: z.string(),
-  runId: z.string(),
-  workerType: z.string(),
-  capability: z.string(),
-  objective: z.string(),
-  input: z.unknown(),
-  attempt: z.number(),
-  schemaVersion: z.string(),
-});
+export { feedbackTypeSchema, workerStatusSchema, workerTaskSchema } from './worker-task';
+export { workerResultSchema } from './worker-result';
+export type { WorkerStatus, FeedbackType, WorkerTask } from './worker-task';
+export type { WorkerResult } from './worker-result';
 
 /** 校验并归一 WorkerResult；失败抛 zod 错误（在 Router/Orchestrator 边界炸掉，别把脏数据传给 Planner）。 */
 export function parseWorkerResult(value: unknown): WorkerResult {

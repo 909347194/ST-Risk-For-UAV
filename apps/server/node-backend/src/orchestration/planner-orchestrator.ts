@@ -15,7 +15,7 @@ import type { PlannerRunContext } from '@/agents/core/planner-context';
 import { buildPlannerSystemPrompt } from '@/agents/planner/system-prompt';
 import type { DispatchRepository } from '@/services/db/dispatch.repo';
 import type { WorkerRouter } from '@/orchestration/worker-router';
-import { createBeforeToolCallHook } from '@/orchestration/execution-policy';
+import { createBeforeToolCallHook, EXECUTION_POLICY_DEFAULTS } from '@/orchestration/execution-policy';
 import { createAfterToolCallHook, ToolExecutionTracker } from '@/orchestration/feedback-handler';
 import { createFinishTurnHook } from '@/orchestration/replanner';
 
@@ -60,14 +60,17 @@ export class PlannerOrchestrator {
       runId: run.id,
       attempt: 0,
       objective: intent.objective,
-      maxTurns: 8,
-      timeoutMs: 120_000,
+      maxTurns: EXECUTION_POLICY_DEFAULTS.maxTurns,
+      timeoutMs: EXECUTION_POLICY_DEFAULTS.timeoutMs,
     };
 
-    // ② 装配 pi 三钩子（Replanner 只做否决）
+    // ② 装配 pi 三钩子（Replanner 只做否决；策略常量统一取自 EXECUTION_POLICY_DEFAULTS）
     const tracker = new ToolExecutionTracker();
     const hooks: Pick<AgentOptions, 'beforeToolCall' | 'afterToolCall' | 'finishTurn'> = {
-      beforeToolCall: createBeforeToolCallHook({ tracker, maxCallsPerTool: 3 }),
+      beforeToolCall: createBeforeToolCallHook({
+        tracker,
+        maxCallsPerTool: EXECUTION_POLICY_DEFAULTS.maxCallsPerTool,
+      }),
       afterToolCall: createAfterToolCallHook({
         runId: run.id,
         sink: this.repo, // DispatchRepository 结构化满足 DispatchRecordSink
@@ -78,13 +81,15 @@ export class PlannerOrchestrator {
     };
 
     // ③ 装配 Planner Agent 并驱动
-    // TODO Phase 1：createPlannerAgent({ models, model, systemPrompt, dispatch: this.router.dispatch, ...hooks })
+    // TODO Phase 1：createPlannerAgent({
+    //   models, model, runContext: ctx, dispatch: this.router.dispatch,
+    //   systemPrompt: buildPlannerSystemPrompt(ctx, this.router.listCapabilities()), ...hooks })
     //              → agent.prompt(intent.objective)
     //              → subscribe 事件流落库/SSE（§7.6）
     //              → Run 硬超时 ctx.timeoutMs → agent.abort() 降级人工
     //              → 最终方案过 validation 硬闸门后再置 COMPLETED
     void hooks;
-    void buildPlannerSystemPrompt(ctx);
+    void buildPlannerSystemPrompt(ctx, this.router.listCapabilities());
 
     return {
       planId: plan.id,

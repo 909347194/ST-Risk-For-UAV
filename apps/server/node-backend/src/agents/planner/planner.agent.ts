@@ -12,6 +12,7 @@
 
 import type { AgentOptions } from '@earendil-works/pi-agent-core';
 import type { Model, Models } from '@earendil-works/pi-ai';
+import type { PlannerRunContext } from '@/agents/core/planner-context';
 import { createStreamFn, loadPiRuntime } from '@/agents/core/runtime-loader';
 import { createAssignTasksTool } from '@/agents/planner/tools/assign-tasks.tool';
 import type { DispatchFn } from '@/orchestration/worker-router';
@@ -28,6 +29,8 @@ export interface CreatePlannerAgentOptions {
   model: Model<any>;
   /** 系统提示词。 */
   systemPrompt: string;
+  /** 当前 Run 上下文（planId/runId 绑定进工具构造的 WorkerTask）。 */
+  runContext: Pick<PlannerRunContext, 'planId' | 'runId'>;
   /** Worker 委派入口。 */
   dispatch: DispatchFn;
   /**
@@ -47,7 +50,8 @@ export async function createPlannerAgent(options: CreatePlannerAgentOptions) {
   const { ai, core } = await loadPiRuntime();
 
   // ① Planner 工具：委派"任务分配"能力（薄按钮，参数 TypeBox、失败 throw、派发串行）。
-  const assignTasksTool = createAssignTasksTool(ai, options.dispatch);
+  //    planId/runId 从 runContext 绑定，保证 WorkerTask 与落库记录的关联正确。
+  const assignTasksTool = createAssignTasksTool(ai, options.dispatch, options.runContext);
 
   // ② 构造 Agent：streamFn 由 pi-ai 的 Models 实例提供；systemPrompt / model / tools 都在 initialState（pi 契约）。
   //    Replanner/Feedback/执行策略以 pi 钩子注入（undefined 即不启用，不自研平行机制）。

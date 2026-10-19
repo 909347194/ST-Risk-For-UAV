@@ -283,19 +283,23 @@ pnpm run test:node
 - 工具契约：`agents/core/planner-tool.spec.ts`（throw/terminate 约定锁死）
 - pi 三钩子：`orchestration/hooks.spec.ts`（策略门/落库/Replanner 否决）
 - 解耦与边界：`orchestration/worker-router.spec.ts`（capability 分发 + zod 拦脏数据）
+- 工具上下文：`agents/planner/tools/assign-tasks.tool.spec.ts`（planId/runId/correlationId 绑定）
+- 提示词：`agents/planner/system-prompt.spec.ts`（动态能力清单）
 - LLM 闭环测试用 pi-ai `fauxProvider()` 做无真实 LLM 的确定性回放（Phase 1）
 
 ## 当前状态与待办
 
 **已就绪**：目录骨架完整、契约与钩子落地、AlgorithmClient 闸门、Registry/Router、
-Plan/Run 落库、23+ 单测、README/架构文档同步。
+Plan/Run 落库、29 单测、README/架构文档同步。
+
+**审查 4 问题已修复（2026-10-19）**：①工具 `planId/runId` 从 `runContext` 绑定（不再空串）
+②system-prompt 能力清单由 `router.listCapabilities()` 动态生成 ③策略常量收敛到
+`EXECUTION_POLICY_DEFAULTS` ④contracts 改 zod 单源（类型 `z.infer` 推导，无双份维护）。
 
 **Phase 1 待接**（均有 TODO 标注）：
 1. `infrastructure/llm`：provider 动态注册（`createPlannerModel`）
 2. `planner-orchestrator`：LLM 闭环（createPlannerAgent → prompt → subscribe 事件流 → SSE）
-3. 工具上下文注入：修 `planId/runId` 空串（工具工厂绑定 `PlannerRunContext`）
-4. system-prompt 能力清单改由 `registry.list()` 动态生成（pi system message sections）
-5. Run 硬超时 → `agent.abort()` 降级人工；validation 硬闸门接入
+3. Run 硬超时 → `agent.abort()` 降级人工；validation 硬闸门接入
 
 ## 环境变量
 
