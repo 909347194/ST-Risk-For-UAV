@@ -13,7 +13,7 @@ export const runs = pgTable('runs', {
   status: text('status').notNull().default('created'),
   /** 第几次尝试（重规划/重试递增）。 */
   attempt: integer('attempt').notNull().default(0),
-  /** 任意结构化结果/响应载荷（如旧的 AgentTaskResponse）。 */
+  /** 终态结构化载荷：validation 通过的最终方案（plan）+ 转录快照（transcript）；失败时带 reason/violations。 */
   payload: jsonb('payload'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),

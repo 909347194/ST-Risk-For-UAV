@@ -43,7 +43,11 @@ export async function loadPiProviderModule(provider: string): Promise<Record<str
 
 /** 并行加载两个命名空间。 */
 export async function loadPiRuntime(): Promise<{ core: PiAgentCore; ai: PiAi }> {
-  const [core, ai] = await Promise.all([loadPiAgentCore(), loadPiAi()]);
+  // 串行而非 Promise.all：Jest（--experimental-vm-modules）的 ESM 链接器对并发动态 import
+  // 有竞争（冷启动并行加载 pi-agent-core + pi-ai 会报 "request for 'typebox' is from a
+  // module not been linked"）。生产 Node 无此问题，但串行同样正确且仅多一次冷启动耗时。
+  const core = await loadPiAgentCore();
+  const ai = await loadPiAi();
   return { core, ai };
 }
 

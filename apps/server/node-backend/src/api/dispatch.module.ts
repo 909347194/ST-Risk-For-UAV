@@ -8,6 +8,7 @@ import { WorkerRegistry } from '@/registry/worker-registry';
 import { allocationWorkerDefinition } from '@/registry/definitions/allocation.def';
 import { WorkerRouter } from '@/orchestration/worker-router';
 import { PlannerOrchestrator } from '@/orchestration/planner-orchestrator';
+import { RunEventBus } from '@/orchestration/run-event-bus';
 import { AlgorithmClient } from '@/services/python/python-client';
 import { DispatchRepository } from '@/services/db/dispatch.repo';
 
@@ -40,7 +41,9 @@ import { DispatchRepository } from '@/services/db/dispatch.repo';
     },
     DispatchRepository,
     PlannerOrchestrator,
+    // SSE 推流总线：orchestrator（发布）与 controller（订阅）共享同一单例
+    RunEventBus,
   ],
-  exports: [WorkerRegistry, WorkerRouter, AlgorithmClient],
+  exports: [WorkerRegistry, WorkerRouter, AlgorithmClient, RunEventBus],
 })
 export class DispatchModule {}

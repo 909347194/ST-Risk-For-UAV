@@ -231,7 +231,7 @@ pi 两包是 **ESM-only** 且 `exports` 只有 `"import"` 条件——CJS `requi
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | GET | `/api/v1/health` | 健康检查 |
-| POST | `/api/v1/dispatch` | 提交调度意图（`{ objective, constraints? }`）→ 创建 Plan+Run，启动 Planner 闭环 |
+| POST | `/api/v1/dispatch` | 提交调度意图（`{ objective, constraints?, timeoutMs? }`）→ 创建 Plan+Run，启动 Planner 闭环（事件流落库 + validation 硬闸门 + Run 硬超时） |
 | POST | `/api/v1/agent/execute` | （遗留占位，待 dispatch 接管） |
 
 ### AlgorithmClient（Python 闸门）
@@ -286,20 +286,31 @@ pnpm run test:node
 - 解耦与边界：`orchestration/worker-router.spec.ts`（capability 分发 + zod 拦脏数据）
 - 工具上下文：`agents/planner/tools/assign-tasks.tool.spec.ts`（planId/runId/correlationId 绑定）
 - 提示词：`agents/planner/system-prompt.spec.ts`（动态能力清单）
-- LLM 闭环测试用 pi-ai `fauxProvider()` 做无真实 LLM 的确定性回放（Phase 1）
+- LLM 闭环：`orchestration/planner-loop.faux.spec.ts`（pi-ai `fauxProvider()` 确定性回放：完整闭环 + 状态机 + validation 拦截 + Run 硬超时）
+- validation 闸门：`orchestration/validation-gate.spec.ts`（纯规则单测）
 
 ## 当前状态与待办
 
 **已就绪**：目录骨架完整、契约与钩子落地、AlgorithmClient 闸门、Registry/Router、
-Plan/Run 落库、**LLM 选型接入（DeepSeek deepseek-flash）**、29 单测、README/架构文档同步。
+Plan/Run 落库、LLM 选型接入（DeepSeek deepseek-flash）、**LLM 闭环 + Run 硬超时 +
+validation 硬闸门（2026-10-19 Phase 1 落地）**、51 单测、README/架构文档同步。
 
 **审查 4 问题已修复（2026-10-19）**：①工具 `planId/runId` 从 `runContext` 绑定（不再空串）
 ②system-prompt 能力清单由 `router.listCapabilities()` 动态生成 ③策略常量收敛到
 `EXECUTION_POLICY_DEFAULTS` ④contracts 改 zod 单源（类型 `z.infer` 推导，无双份维护）。
 
-**Phase 1 待接**（均有 TODO 标注）：
-1. `planner-orchestrator`：LLM 闭环（`createPlannerModel()` 已就绪 → createPlannerAgent → prompt → subscribe 事件流 → SSE）
-2. Run 硬超时 → `agent.abort()` 降级人工；validation 硬闸门接入
+**Phase 1 已落地（2026-10-19）**：
+1. `planner-orchestrator` LLM 闭环：`createPlannerModel` → `createPlannerAgent` → `agent.prompt()` → `subscribe` 事件流落库（agent_start → runs.status；turn_start/turn_end → dispatch_events；转录快照进 runs.payload）
+2. Run 硬超时：`ctx.timeoutMs`（DTO 可传 `timeoutMs` 覆盖）→ `agent.abort()` → 降级人工（status=failed, reason=run_timeout）
+3. validation 硬闸门：`orchestration/validation-gate.ts` 确定性校验（任务不重复分配、已分配/未分配不相交、请求集合交叉校验），不过不得置 COMPLETED
+
+**验证方式**：
+- `pnpm run test:node`（jest，需 `--experimental-vm-modules`，test 脚本已内置）：51 单测，含 `planner-loop.faux.spec.ts`（fauxProvider 回放完整闭环 + 超时 + 闸门拦截）
+- 真实 API 冒烟（需 `.env` 配置 `DEEPSEEK_API_KEY`，不起 Python/DB）：
+  `node -r ts-node/register/transpile-only -r tsconfig-paths/register scripts/smoke-llm-loop.ts`
+
+**Phase 2 待接**：risk / route / resource / validation 能力注册、AllocationPayloadLoader 接 DB、
+SSE 推流（`message_update` 打字机）、领域解读（分配方案/未分配/冲突 → result + feedback）。
 
 ## 环境变量
 

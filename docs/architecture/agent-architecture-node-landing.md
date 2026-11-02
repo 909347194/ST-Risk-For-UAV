@@ -380,7 +380,15 @@ PlannerTool.execute ──dispatch('allocation.assign')──▶ Registry 查询
 
 ## 10. 第一阶段逐文件落地方案（按"先核对、再逐文件实现"）
 
-> **2026-10-18 进度：下述骨架已全部就位**（含 AlgorithmClient 迁移、assign-tasks 工具抽离、DispatchModule 装配；标注 TODO 的即 Phase 1 待接逻辑：LLM 闭环 / provider 注册 / 领域解读）。验证：tsc 0 错误、jest 23/23、eslint 0 错误。
+> **2026-10-19 进度：Phase 1 编排层已全部落地**（LLM 闭环 / Run 硬超时 / validation 硬闸门）。
+> 2026-10-18 骨架就位（AlgorithmClient 迁移、assign-tasks 工具抽离、DispatchModule 装配）；
+> 2026-10-19 `planner-orchestrator.ts` 接入 `createPlannerModel → createPlannerAgent → agent.prompt()
+> → subscribe 事件流落库`（agent_start → runs.status；turn_start/turn_end → dispatch_events；
+> 转录快照进 runs.payload），Run 硬超时（ctx.timeoutMs → agent.abort() 降级人工），
+> validation 硬闸门（orchestration/validation-gate.ts 确定性校验，不过不得置 COMPLETED）。
+> 验证：tsc 0 错误、jest 51/51、eslint 0 错误；真实 DeepSeek API 冒烟通过
+> （scripts/smoke-llm-loop.ts，不起 Python/DB）。剩余 Phase 2：risk/route/resource/validation
+> 能力注册、AllocationPayloadLoader 接 DB、SSE 推流、领域解读。
 
 目标：跑通最小闭环（Runtime Factory + Planner + Allocation Worker + Router + 一个 Python 调用），用户提交调度请求后 Planner 能委派、拿结构化结果、返回。
 
@@ -404,11 +412,12 @@ src/
     worker-registry.ts            // capability → WorkerDefinition 内存注册表
     definitions/allocation.def.ts// allocation-worker 定义 + runtimeFactory
   orchestration/
-    planner-orchestrator.ts       // 替代现 AgentService：装配 Agent+hooks+subscribe，驱动 prompt()
+    planner-orchestrator.ts       // ✅ LLM 闭环：createPlannerModel→createPlannerAgent→prompt→subscribe 落库 + Run 硬超时 + validation 闸门
     worker-router.ts              // dispatch(capability, task)
     execution-policy.ts           // ✅ createBeforeToolCallHook：取消/白名单/重试上限（Phase 1 常量）
     feedback-handler.ts           // ✅ createAfterToolCallHook + ToolExecutionTracker：worker_executions + dispatch_events 落库
     replanner.ts                  // ✅ createFinishTurnHook：finishTurn 决策（maxTurns 收敛 + shouldContinue）
+    validation-gate.ts            // ✅ 最终方案确定性校验（不重复分配/不相交/请求集合交叉），不过不得置 COMPLETED
   contracts/
     worker-task.ts / worker-result.ts   // 已有；补 timestamps/correlationId
     runtime-schema.ts             // zod 校验：领域 input / WorkerResult / Python 响应
@@ -421,7 +430,10 @@ src/
   db/models/
     plan.ts / run.ts / worker-execution.ts / dispatch-event.ts  // 已有，按第 9 节补字段
   tests/
-    planner-loop.faux.spec.ts     // fauxProvider() 回放：Planner→工具→结果 闭环
+    planner-loop.faux.spec.ts     // ✅ fauxProvider() 回放：完整闭环 + 状态机 + validation 拦截 + Run 硬超时（51 单测全绿）
+    validation-gate.spec.ts       // ✅ 闸门纯规则单测
+  scripts/
+    smoke-llm-loop.ts             // ✅ 真实 DeepSeek API 冒烟（createPlannerModel→createPlannerAgent→prompt→事件流→闸门）
 ```
 
 **保留 / 微调：**

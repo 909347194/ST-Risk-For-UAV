@@ -54,6 +54,22 @@ export class DispatchRepository {
       .where(eq(runs.id, id));
   }
 
+  /**
+   * 终态落库：status + payload + finishedAt 一次写入。
+   * validation 硬闸门 / Run 硬超时 / 各类失败的统一出口（COMPLETED 只能经此方法置入）。
+   */
+  async finalizeRun(id: string, input: { status: string; payload?: unknown }): Promise<void> {
+    await db
+      .update(runs)
+      .set({
+        status: input.status,
+        ...(input.payload !== undefined ? { payload: input.payload } : {}),
+        updatedAt: new Date(),
+        finishedAt: new Date(),
+      })
+      .where(eq(runs.id, id));
+  }
+
   // ── WorkerExecution ──
   async recordWorkerExecution(input: NewWorkerExecution): Promise<WorkerExecutionRow> {
     const [row] = await db.insert(workerExecutions).values(input).returning();
